@@ -1,17 +1,17 @@
-package wal_test
+package writeahead_test
 
 import (
 	"bytes"
 	"encoding/base64"
 	"testing"
 
-	. "github.com/kapitanov/natandb/pkg/wal"
+	"github.com/kapitanov/natandb/pkg/writeahead"
 )
 
 func TestNoneRecord(t *testing.T) {
-	record := &Record{
+	record := &writeahead.Record{
 		ID:    123456780,
-		Type:  None,
+		Type:  writeahead.None,
 		Key:   "",
 		Value: nil,
 	}
@@ -20,9 +20,9 @@ func TestNoneRecord(t *testing.T) {
 }
 
 func TestAddValueRecord(t *testing.T) {
-	record := &Record{
+	record := &writeahead.Record{
 		ID:    123456780,
-		Type:  AddValue,
+		Type:  writeahead.AddValue,
 		Key:   "foo/bar",
 		Value: []byte("FooBar"),
 	}
@@ -31,9 +31,9 @@ func TestAddValueRecord(t *testing.T) {
 }
 
 func TestRemoveValueRecord(t *testing.T) {
-	record := &Record{
+	record := &writeahead.Record{
 		ID:    123456780,
-		Type:  AddValue,
+		Type:  writeahead.AddValue,
 		Key:   "foo/bar",
 		Value: []byte("FooBar"),
 	}
@@ -42,9 +42,9 @@ func TestRemoveValueRecord(t *testing.T) {
 }
 
 func TestRemoveKeyRecord(t *testing.T) {
-	record := &Record{
+	record := &writeahead.Record{
 		ID:    123456780,
-		Type:  RemoveKey,
+		Type:  writeahead.RemoveKey,
 		Key:   "foo/bar",
 		Value: nil,
 	}
@@ -53,9 +53,9 @@ func TestRemoveKeyRecord(t *testing.T) {
 }
 
 func TestBrokenRecord(t *testing.T) {
-	record := &Record{
+	record := &writeahead.Record{
 		ID:    123456780,
-		Type:  RemoveKey,
+		Type:  writeahead.RemoveKey,
 		Key:   "",
 		Value: []byte("FooBar"),
 	}
@@ -63,8 +63,8 @@ func TestBrokenRecord(t *testing.T) {
 	testWriteAndRead(t, record)
 }
 
-func testWriteAndRead(t *testing.T, record *Record) {
-	serializer := NewSerializer()
+func testWriteAndRead(t *testing.T, record *writeahead.Record) {
+	serializer := writeahead.NewSerializer()
 
 	var outputBuffer bytes.Buffer
 	err := serializer.Serialize(record, &outputBuffer)

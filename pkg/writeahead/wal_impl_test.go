@@ -1,10 +1,11 @@
-package wal_test
+package writeahead_test
 
 import (
 	"io"
 	"testing"
 
-	. "github.com/kapitanov/natandb/pkg/wal"
+	"github.com/kapitanov/natandb/pkg/storage"
+	writeahead "github.com/kapitanov/natandb/pkg/writeahead"
 )
 
 type inMemoryFileSystem struct {
@@ -15,16 +16,21 @@ type inMemoryFileSystem struct {
 	capacity    int
 }
 
-func (s *inMemoryFileSystem) OpenRead() (io.ReadSeeker, error) {
+type inMemoryFileSystemReaderWriter struct {
+	stream *inMemoryFileSystem
+}
+
+func (s *inMemoryFileSystem) Read() (io.ReadSeeker, error) {
 	s.readOffset = 0
-	return s, nil
+	return &inMemoryFileSystemReaderWriter{s}, nil
 }
 
-func (s *inMemoryFileSystem) OpenWrite() (io.WriteCloser, error) {
-	return s, nil
+func (s *inMemoryFileSystem) Write() (io.WriteCloser, error) {
+	return &inMemoryFileSystemReaderWriter{s}, nil
 }
 
-func (s *inMemoryFileSystem) Read(p []byte) (int, error) {
+func (r *inMemoryFileSystemReaderWriter) Read(p []byte) (int, error) {
+	s := r.stream
 	n := len(p)
 
 	if n > s.capacity-s.readOffset {
@@ -50,7 +56,8 @@ func (s *inMemoryFileSystem) Read(p []byte) (int, error) {
 	return n, nil
 }
 
-func (s *inMemoryFileSystem) Write(p []byte) (int, error) {
+func (w *inMemoryFileSystemReaderWriter) Write(p []byte) (int, error) {
+	s := w.stream
 	n := len(p)
 	for len(s.buffer) < s.writeOffset+n {
 		newBuffer := make([]byte, len(s.buffer)+1024)
@@ -77,7 +84,8 @@ func (s *inMemoryFileSystem) Write(p []byte) (int, error) {
 	return n, nil
 }
 
-func (s *inMemoryFileSystem) Seek(offset int64, whence int) (int64, error) {
+func (r *inMemoryFileSystemReaderWriter) Seek(offset int64, whence int) (int64, error) {
+	s := r.stream
 	was := s.readOffset
 	switch whence {
 	case io.SeekCurrent:
@@ -98,11 +106,11 @@ func (s *inMemoryFileSystem) Seek(offset int64, whence int) (int64, error) {
 	return int64(s.readOffset), nil
 }
 
-func (s *inMemoryFileSystem) Close() error {
+func (r *inMemoryFileSystemReaderWriter) Close() error {
 	return nil
 }
 
-func NewInMemoryFileSystem(t *testing.T) FileSystem {
+func NewInMemoryWriteAheadLogFile(t *testing.T) storage.WriteAheadLogFile {
 	return &inMemoryFileSystem{
 		t:      t,
 		buffer: make([]byte, 0),
@@ -114,7 +122,7 @@ const (
 )
 
 func TestEmptyLog(t *testing.T) {
-	log, err := NewLog(NewInMemoryFileSystem(t), NewSerializer())
+	log, err := writeahead.NewLog(NewInMemoryWriteAheadLogFile(t), writeahead.NewSerializer())
 	if err != nil {
 		t.Errorf("NewLog() failed: %s", err)
 		return
@@ -131,7 +139,7 @@ func TestEmptyLog(t *testing.T) {
 }
 
 func TestReadAfterWriteOne(t *testing.T) {
-	log, err := NewLog(NewInMemoryFileSystem(t), NewSerializer())
+	log, err := writeahead.NewLog(NewInMemoryWriteAheadLogFile(t), writeahead.NewSerializer())
 	if err != nil {
 		t.Errorf("NewLog() failed: %s", err)
 		return
@@ -139,8 +147,8 @@ func TestReadAfterWriteOne(t *testing.T) {
 
 	count := WriteCount
 	for i := 0; i < count; i++ {
-		record := &Record{
-			Type:  AddValue,
+		record := &writeahead.Record{
+			Type:  writeahead.AddValue,
 			Key:   "foo/bar",
 			Value: []byte("FooBar"),
 		}
@@ -170,17 +178,17 @@ func TestReadAfterWriteOne(t *testing.T) {
 }
 
 func TestReadAfterWriteMany(t *testing.T) {
-	log, err := NewLog(NewInMemoryFileSystem(t), NewSerializer())
+	log, err := writeahead.NewLog(NewInMemoryWriteAheadLogFile(t), writeahead.NewSerializer())
 	if err != nil {
 		t.Errorf("NewLog() failed: %s", err)
 		return
 	}
 
 	count := WriteCount
-	records := make([]*Record, count)
+	records := make([]*writeahead.Record, count)
 	for i := 0; i < count; i++ {
-		record := &Record{
-			Type:  AddValue,
+		record := &writeahead.Record{
+			Type:  writeahead.AddValue,
 			Key:   "foo/bar",
 			Value: []byte("FooBar"),
 		}
@@ -212,17 +220,17 @@ func TestReadAfterWriteMany(t *testing.T) {
 }
 
 func TestReadChunkForward(t *testing.T) {
-	log, err := NewLog(NewInMemoryFileSystem(t), NewSerializer())
+	log, err := writeahead.NewLog(NewInMemoryWriteAheadLogFile(t), writeahead.NewSerializer())
 	if err != nil {
 		t.Errorf("NewLog() failed: %s", err)
 		return
 	}
 
 	count := WriteCount
-	records := make([]*Record, count)
+	records := make([]*writeahead.Record, count)
 	for i := 0; i < count; i++ {
-		record := &Record{
-			Type:  AddValue,
+		record := &writeahead.Record{
+			Type:  writeahead.AddValue,
 			Key:   "foo/bar",
 			Value: []byte("FooBar"),
 		}
@@ -277,17 +285,17 @@ func TestReadChunkForward(t *testing.T) {
 }
 
 func TestReadChunkBackward(t *testing.T) {
-	log, err := NewLog(NewInMemoryFileSystem(t), NewSerializer())
+	log, err := writeahead.NewLog(NewInMemoryWriteAheadLogFile(t), writeahead.NewSerializer())
 	if err != nil {
 		t.Errorf("NewLog() failed: %s", err)
 		return
 	}
 
 	count := WriteCount
-	records := make([]*Record, count)
+	records := make([]*writeahead.Record, count)
 	for i := 0; i < count; i++ {
-		record := &Record{
-			Type:  AddValue,
+		record := &writeahead.Record{
+			Type:  writeahead.AddValue,
 			Key:   "foo/bar",
 			Value: []byte("FooBar"),
 		}

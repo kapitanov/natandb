@@ -1,4 +1,4 @@
-package wal
+package writeahead
 
 // WAL binary format:
 //
@@ -15,15 +15,13 @@ package wal
 // +---+---------+---------+----------------------+
 
 import (
-	"encoding/binary"
 	"fmt"
 	"io"
+
+	"github.com/kapitanov/natandb/pkg/util"
 )
 
-type serializerImpl struct {
-	writer *binaryWriter
-	reader *binaryReader
-}
+type serializerImpl struct{}
 
 const (
 	walRecordHeaderLength  = 8 + 1 + 4 + 4
@@ -32,159 +30,48 @@ const (
 
 // NewSerializer creates new WAL record serializer
 func NewSerializer() Serializer {
-	return &serializerImpl{
-		writer: &binaryWriter{
-			buffer:    make([]byte, 8),
-			byteOrder: binary.LittleEndian,
-		},
-		reader: &binaryReader{
-			buffer:    make([]byte, 8),
-			byteOrder: binary.LittleEndian,
-		},
-	}
-}
-
-type binaryWriter struct {
-	buffer    []byte
-	byteOrder binary.ByteOrder
-}
-
-func (writer *binaryWriter) WriteUint64(w io.Writer, value uint64) error {
-	writer.byteOrder.PutUint64(writer.buffer, value)
-	return writer.write(w, writer.buffer[0:8])
-}
-
-func (writer *binaryWriter) WriteUint32(w io.Writer, value uint32) error {
-	writer.byteOrder.PutUint32(writer.buffer, value)
-	return writer.write(w, writer.buffer[0:4])
-}
-
-func (writer *binaryWriter) WriteUint8(w io.Writer, value uint8) error {
-	writer.buffer[0] = byte(value)
-	return writer.write(w, writer.buffer[0:1])
-}
-
-func (writer *binaryWriter) WriteString(w io.Writer, value string) error {
-	return writer.write(w, []byte(value))
-}
-
-func (writer *binaryWriter) WriteBytes(w io.Writer, value []byte) error {
-	return writer.write(w, value)
-}
-
-func (writer *binaryWriter) write(w io.Writer, buffer []byte) error {
-	n, err := w.Write(buffer)
-	if err == nil && n < len(buffer) {
-		err = fmt.Errorf("not enough data has been written (expected %d, got %d)", len(buffer), n)
-	}
-
-	return err
-}
-
-type binaryReader struct {
-	buffer    []byte
-	byteOrder binary.ByteOrder
-}
-
-func (reader *binaryReader) ReadUint64(r io.Reader) (uint64, error) {
-	buffer := reader.buffer[0:8]
-	err := reader.read(r, buffer)
-	if err != nil {
-		return 0, err
-	}
-
-	value := reader.byteOrder.Uint64(buffer)
-	return value, nil
-}
-
-func (reader *binaryReader) ReadUint32(r io.Reader) (uint32, error) {
-	buffer := reader.buffer[0:4]
-	err := reader.read(r, buffer)
-	if err != nil {
-		return 0, err
-	}
-
-	value := reader.byteOrder.Uint32(buffer)
-	return value, nil
-}
-
-func (reader *binaryReader) ReadUint8(r io.Reader) (uint8, error) {
-	buffer := reader.buffer[0:1]
-	err := reader.read(r, buffer)
-	if err != nil {
-		return 0, err
-	}
-
-	value := uint8(buffer[0])
-	return value, nil
-}
-
-func (reader *binaryReader) ReadString(r io.Reader, len int) (string, error) {
-	buffer := make([]byte, len)
-	err := reader.read(r, buffer)
-	if err != nil {
-		return "", err
-	}
-	return string(buffer), nil
-}
-
-func (reader *binaryReader) ReadBytes(r io.Reader, len int) ([]byte, error) {
-	buffer := make([]byte, len)
-	err := reader.read(r, buffer)
-	if err != nil {
-		return nil, err
-	}
-	return buffer, nil
-}
-
-func (reader *binaryReader) read(r io.Reader, buffer []byte) error {
-	n, err := r.Read(buffer)
-	if err == nil && n < len(buffer) {
-		err = fmt.Errorf("not enough data has been read (expected %d, got %d)", len(buffer), n)
-	}
-
-	return err
+	return &serializerImpl{}
 }
 
 // Serialize writes a WAL record into its binary representation
 func (s *serializerImpl) Serialize(record *Record, w io.Writer) error {
 	// Record ID
-	err := s.writer.WriteUint64(w, record.ID)
+	err := util.WriteUint64(w, record.ID)
 	if err != nil {
 		return fmt.Errorf("failed to write wal record id: %s", err)
 	}
 
 	// Record type
-	err = s.writer.WriteUint8(w, uint8(record.Type))
+	err = util.WriteUint8(w, uint8(record.Type))
 	if err != nil {
 		return fmt.Errorf("failed to write wal record type: %s", err)
 	}
 
 	// "Key" field length
-	err = s.writer.WriteUint32(w, uint32(len([]byte(record.Key))))
+	err = util.WriteUint32(w, uint32(len([]byte(record.Key))))
 	if err != nil {
 		return fmt.Errorf("failed to write wal record key length: %s", err)
 	}
 
 	// "Value" field length
 	if record.Value != nil {
-		err = s.writer.WriteUint32(w, uint32(len(record.Value)))
+		err = util.WriteUint32(w, uint32(len(record.Value)))
 	} else {
-		err = s.writer.WriteUint32(w, 0)
+		err = util.WriteUint32(w, 0)
 	}
 	if err != nil {
 		return fmt.Errorf("failed to write wal record value length: %s", err)
 	}
 
 	// "Key" field
-	err = s.writer.WriteString(w, record.Key)
+	err = util.WriteString(w, record.Key)
 	if err != nil {
 		return fmt.Errorf("failed to write wal record key: %s", err)
 	}
 
 	// "Value" field
 	if record.Value != nil {
-		err = s.writer.WriteBytes(w, record.Value)
+		err = util.WriteBytes(w, record.Value)
 		if err != nil {
 			return fmt.Errorf("failed to write wal record value: %s", err)
 		}
@@ -195,7 +82,7 @@ func (s *serializerImpl) Serialize(record *Record, w io.Writer) error {
 	if record.Value != nil {
 		length += len(record.Value)
 	}
-	err = s.writer.WriteUint32(w, uint32(length))
+	err = util.WriteUint32(w, uint32(length))
 	if err != nil {
 		return fmt.Errorf("failed to write wal record length: %s", err)
 	}
@@ -209,7 +96,7 @@ func (s *serializerImpl) Deserialize(r io.Reader) (*Record, error) {
 	var err error
 
 	// Record ID
-	record.ID, err = s.reader.ReadUint64(r)
+	record.ID, err = util.ReadUint64(r)
 	if err != nil {
 		if err == io.EOF {
 			return nil, err
@@ -218,27 +105,27 @@ func (s *serializerImpl) Deserialize(r io.Reader) (*Record, error) {
 	}
 
 	// Record type
-	recordType, err := s.reader.ReadUint8(r)
+	recordType, err := util.ReadUint8(r)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read wal record type: %s", err)
 	}
 	record.Type = RecordType(recordType)
 
 	// "Key" field length
-	keyLength, err := s.reader.ReadUint32(r)
+	keyLength, err := util.ReadUint32(r)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read wal record key length: %s", err)
 	}
 
 	// "Value" field length
-	valueLength, err := s.reader.ReadUint32(r)
+	valueLength, err := util.ReadUint32(r)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read wal record value length: %s", err)
 	}
 
 	// "Key" field
 	if keyLength > 0 {
-		record.Key, err = s.reader.ReadString(r, int(keyLength))
+		record.Key, err = util.ReadString(r, int(keyLength))
 		if err != nil {
 			return nil, fmt.Errorf("failed to read wal record key: %s", err)
 		}
@@ -248,7 +135,7 @@ func (s *serializerImpl) Deserialize(r io.Reader) (*Record, error) {
 
 	// "Value" field
 	if valueLength > 0 {
-		record.Value, err = s.reader.ReadBytes(r, int(valueLength))
+		record.Value, err = util.ReadBytes(r, int(valueLength))
 		if err != nil {
 			return nil, fmt.Errorf("failed to read wal record value: %s", err)
 		}
@@ -257,7 +144,7 @@ func (s *serializerImpl) Deserialize(r io.Reader) (*Record, error) {
 	}
 
 	// "Length" field
-	length, err := s.reader.ReadUint32(r)
+	length, err := util.ReadUint32(r)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read wal record length: %s", err)
 	}
@@ -316,7 +203,7 @@ func (s *serializerImpl) GetRecordMetadataBackward(r io.ReadSeeker, metadata *Re
 	}
 
 	// Read record length
-	length, err := s.reader.ReadUint32(r)
+	length, err := util.ReadUint32(r)
 	if err != nil {
 		return fmt.Errorf("failed to read wal record length: %s", err)
 	}
@@ -352,7 +239,7 @@ func (s *serializerImpl) getRecordMetadata(r io.ReadSeeker, metadata *RecordMeta
 	var err error
 
 	// Record ID
-	metadata.ID, err = s.reader.ReadUint64(r)
+	metadata.ID, err = util.ReadUint64(r)
 	if err != nil {
 		if err == io.EOF {
 			return err
@@ -367,13 +254,13 @@ func (s *serializerImpl) getRecordMetadata(r io.ReadSeeker, metadata *RecordMeta
 	}
 
 	// "Key" field length
-	keyLength, err := s.reader.ReadUint32(r)
+	keyLength, err := util.ReadUint32(r)
 	if err != nil {
 		return fmt.Errorf("failed to read wal record key length: %s", err)
 	}
 
 	// "Value" field
-	valueLength, err := s.reader.ReadUint32(r)
+	valueLength, err := util.ReadUint32(r)
 	if err != nil {
 		return fmt.Errorf("failed to read wal record value length: %s", err)
 	}

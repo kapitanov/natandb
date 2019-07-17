@@ -1,4 +1,4 @@
-package wal
+package writeahead
 
 import (
 	"encoding/base64"
@@ -11,7 +11,7 @@ type RecordType = uint8
 
 const (
 	// None marks an empty record
-	None RecordType = 0
+	None RecordType = iota
 	// AddValue marks a record than adds a value to a key
 	AddValue
 	// RemoveValue marks a record than removes a value from a key
@@ -141,13 +141,4 @@ type Serializer interface {
 	// GetRecordMetadataBackward reads record metadata from binary stream and seeks back to original position
 	// GetRecordMetadataBackward assumes that input stream is at record's end
 	GetRecordMetadataBackward(r io.ReadSeeker, metadata *RecordMetadata) error
-}
-
-// FileSystem provides access to storage data streams
-type FileSystem interface {
-	// OpenRead opens WAL log file for reading
-	OpenRead() (io.ReadSeeker, error)
-
-	// OpenWrite opens WAL log file for writing
-	OpenWrite() (io.WriteCloser, error)
 }

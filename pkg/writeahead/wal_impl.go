@@ -1,12 +1,14 @@
-package wal
+package writeahead
 
 import (
 	"io"
 	"sync"
+
+	"github.com/kapitanov/natandb/pkg/storage"
 )
 
 type walImpl struct {
-	fs         FileSystem
+	fs         storage.WriteAheadLogFile
 	serializer Serializer
 
 	lastID uint64
@@ -15,7 +17,7 @@ type walImpl struct {
 }
 
 // NewLog creates new write-ahead log instance
-func NewLog(fs FileSystem, serializer Serializer) (Log, error) {
+func NewLog(fs storage.WriteAheadLogFile, serializer Serializer) (Log, error) {
 	wal := &walImpl{
 		fs:         fs,
 		serializer: serializer,
@@ -29,6 +31,7 @@ func NewLog(fs FileSystem, serializer Serializer) (Log, error) {
 }
 
 func (w *walImpl) Initialize() error {
+	// TODO add version check
 	// TODO scan back and drop unterminated records
 
 	chunk, err := w.ReadChunkBackward(^uint64(0), 1)
@@ -42,7 +45,7 @@ func (w *walImpl) Initialize() error {
 		w.lastID = 0
 	}
 
-	w.file, err = w.fs.OpenWrite()
+	w.file, err = w.fs.Write()
 	if err != nil {
 		return err
 	}
@@ -87,7 +90,7 @@ func (w *walImpl) writeOneImpl(record *Record) error {
 
 // ReadChunkForward reads a list of records from a WAL file in forward direction with filtering by ID
 func (w *walImpl) ReadChunkForward(minID uint64, limit int) (RecordChunk, error) {
-	file, err := w.fs.OpenRead()
+	file, err := w.fs.Read()
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +149,7 @@ func (w *walImpl) ReadChunkForward(minID uint64, limit int) (RecordChunk, error)
 
 // ReadChunkBackward reads a list of records from a WAL file in backward direction with filtering by ID
 func (w *walImpl) ReadChunkBackward(maxID uint64, limit int) (RecordChunk, error) {
-	file, err := w.fs.OpenRead()
+	file, err := w.fs.Read()
 	if err != nil {
 		return nil, err
 	}
