@@ -60,7 +60,7 @@ func Restore(log writeahead.Log, snapshot storage.SnapshotFile) (*Root, error) {
 	}
 
 	// Then replay write-ahead log to restore model's actual state
-	lastChangeID := model.lastChangeID
+	lastChangeID := model.LastChangeID
 	err = model.replayWriteAheadLog(log)
 	if err != nil {
 		return nil, err
@@ -68,7 +68,7 @@ func Restore(log writeahead.Log, snapshot storage.SnapshotFile) (*Root, error) {
 
 	// If model stage was not in sync with write-ahead log,
 	// then new model snapshot should be created
-	if lastChangeID != model.lastChangeID {
+	if lastChangeID != model.LastChangeID {
 		file, err := snapshot.Write()
 		if err != nil && err != io.EOF {
 			return nil, err
@@ -94,15 +94,22 @@ func ReadSnapshot(file io.Reader) (*Root, error) {
 	model := New()
 
 	if file != nil {
+		// First, read a schema version
 		version, err := util.ReadUint32(file)
 		if err != nil {
+			if err == io.EOF {
+				// File is empty, which should not produce any errors
+				return model, nil
+			}
 			return nil, err
 		}
 
+		// Check schema version (no migration support so far)
 		if version != schemaVersion {
 			return nil, fmt.Errorf("incompatible schema: #%d", version)
 		}
 
+		// Read node snapshots until we see an EOF
 		for {
 			node, err := readNodeFromSnapshot(file)
 			if err != nil {
@@ -113,14 +120,14 @@ func ReadSnapshot(file io.Reader) (*Root, error) {
 				return nil, err
 			}
 
-			existingNode := model.GetNode(node.key)
+			existingNode := model.GetNode(node.Key)
 			if existingNode != nil {
-				return nil, fmt.Errorf("malformed snapshot: duplicate key \"%s\"", node.key)
+				return nil, fmt.Errorf("malformed snapshot: duplicate key \"%s\"", node.Key)
 			}
 
-			model.nodes[node.key] = node
-			if model.lastChangeID < node.lastChangeID {
-				model.lastChangeID = node.lastChangeID
+			model.NodesMap[node.Key] = node
+			if model.LastChangeID < node.LastChangeID {
+				model.LastChangeID = node.LastChangeID
 			}
 		}
 	}
@@ -135,7 +142,7 @@ func (m *Root) WriteSnapshot(file io.Writer) error {
 		return err
 	}
 
-	for _, node := range m.nodes {
+	for _, node := range m.NodesMap {
 		err = node.writeSnapshot(file)
 		if err != nil {
 			return err
@@ -192,9 +199,9 @@ func readNodeFromSnapshot(file io.Reader) (*Node, error) {
 	}
 
 	node := &Node{
-		key:          key,
-		lastChangeID: lastChangeID,
-		values:       values,
+		Key:          key,
+		LastChangeID: lastChangeID,
+		Values:       values,
 	}
 	return node, nil
 }
@@ -202,31 +209,31 @@ func readNodeFromSnapshot(file io.Reader) (*Node, error) {
 // writeSnapshot writes model node snapshot into its binary form
 func (n *Node) writeSnapshot(file io.Writer) error {
 	// Node last change ID
-	err := util.WriteUint64(file, n.lastChangeID)
+	err := util.WriteUint64(file, n.LastChangeID)
 	if err != nil {
 		return err
 	}
 
 	// Key length
-	err = util.WriteUint32(file, uint32(len(n.key)))
+	err = util.WriteUint32(file, uint32(len(n.Key)))
 	if err != nil {
 		return err
 	}
 
 	// Key value
-	err = util.WriteString(file, n.key)
+	err = util.WriteString(file, n.Key)
 	if err != nil {
 		return err
 	}
 
 	// Value array length
-	err = util.WriteUint32(file, uint32(len(n.values)))
+	err = util.WriteUint32(file, uint32(len(n.Values)))
 	if err != nil {
 		return err
 	}
 
 	// Value array
-	for _, value := range n.values {
+	for _, value := range n.Values {
 		// Value[i] length
 		err = util.WriteUint32(file, uint32(len(value)))
 		if err != nil {

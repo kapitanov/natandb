@@ -69,25 +69,25 @@ func testWriteAndRead(t *testing.T, record *writeahead.Record) {
 	var outputBuffer bytes.Buffer
 	err := serializer.Serialize(record, &outputBuffer)
 	if err != nil {
-		t.Errorf("serializer.Serialize() failed: %s", err)
+		t.Errorf("ERROR: serializer.Serialize() failed: %s", err)
 		return
 	}
 
 	buffer := outputBuffer.Bytes()
 	expectedLength := serializer.CalcBinaryLength(record)
 	if len(buffer) != int(expectedLength) {
-		t.Errorf("serializer.Serialize(): wrong buffer size (%d != %d)", len(buffer), expectedLength)
+		t.Errorf("ERROR: serializer.Serialize(): wrong buffer size (%d != %d)", len(buffer), expectedLength)
 		return
 	}
 
 	intputBuffer := bytes.NewBuffer(buffer)
 	deserializedRecord, err := serializer.Deserialize(intputBuffer)
 	if err != nil {
-		t.Errorf("serializer.Deserialize() failed: %s <%s> ", err, base64.StdEncoding.EncodeToString(buffer))
+		t.Errorf("ERROR: serializer.Deserialize() failed: %s <%s> ", err, base64.StdEncoding.EncodeToString(buffer))
 		return
 	}
 
 	if !record.Equals(deserializedRecord) {
-		t.Errorf("record content mismatch: %s != %s", record, deserializedRecord)
+		t.Errorf("ERROR: record content mismatch: %s != %s", record, deserializedRecord)
 	}
 }

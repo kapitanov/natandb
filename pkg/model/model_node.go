@@ -26,36 +26,21 @@ func (v Value) Equal(other Value) bool {
 // Node describes a single node model
 type Node struct {
 	// Node key
-	key string
+	Key string
 	// ID of last change applied to node
-	lastChangeID uint64
+	LastChangeID uint64
 	// Node values
-	values []Value
+	Values []Value
 }
 
 func (n *Node) String() string {
-	return fmt.Sprintf("{ $%d, \"%s\" %s }", n.lastChangeID, n.key, n.values)
-}
-
-// Key returns node key
-func (n *Node) Key() string {
-	return n.key
-}
-
-// LastChangeID returns node last applied change ID
-func (n *Node) LastChangeID() uint64 {
-	return n.lastChangeID
-}
-
-// Values returns node value array
-func (n *Node) Values() []Value {
-	return n.values
+	return fmt.Sprintf("{ $%d, \"%s\" %s }", n.LastChangeID, n.Key, n.Values)
 }
 
 // Contains returns true if node contains specified value
 func (n *Node) Contains(value Value) bool {
-	for i := range n.values {
-		if n.values[i].Equal(value) {
+	for i := range n.Values {
+		if n.Values[i].Equal(value) {
 			return true
 		}
 	}
@@ -65,15 +50,18 @@ func (n *Node) Contains(value Value) bool {
 
 // Apply applied a write-ahead log record to a data model node
 func (n *Node) apply(record *writeahead.Record) error {
-	if record.ID <= n.lastChangeID {
+	if record.ID <= n.LastChangeID {
 		return nil
 	}
 
 	switch record.Type {
 	case writeahead.None:
 		break
+	case writeahead.RemoveKey:
+		n.Values = n.Values[0:0]
+		break
 	case writeahead.AddValue:
-		n.values = append(n.values, record.Value)
+		n.Values = append(n.Values, record.Value)
 		break
 	case writeahead.RemoveValue:
 		n.removeValue(record.Value)
@@ -82,13 +70,13 @@ func (n *Node) apply(record *writeahead.Record) error {
 		return fmt.Errorf("unknown wal record type: %d", record.Type)
 	}
 
-	n.lastChangeID = record.ID
+	n.LastChangeID = record.ID
 	return nil
 }
 
 // removeValue removes a value from a node
 func (n *Node) removeValue(value Value) bool {
-	values := n.values
+	values := n.Values
 
 	// Scan value array forward
 	for i := range values {
@@ -101,7 +89,7 @@ func (n *Node) removeValue(value Value) bool {
 
 			// Trim an array, removing last element
 			values = values[0 : len(values)-1]
-			n.values = values
+			n.Values = values
 			return true
 		}
 	}
