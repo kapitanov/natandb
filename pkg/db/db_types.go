@@ -109,9 +109,9 @@ type Engine interface {
 	// If specified value doesn't exist within a node, a ErrNoSuchValue error is returned
 	RemoveAllValues(key Key, value Value) (*Node, error)
 
-	// Drop removes a key completely
+	// RemoveKey removes a key completely
 	// If specified node doesn't exist, a ErrNoSuchKey error is returned
-	Drop(key Key) error
+	RemoveKey(key Key) error
 
 	// Close shuts engine down gracefully
 	Close() error

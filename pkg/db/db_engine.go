@@ -329,9 +329,9 @@ func (e *engineImpl) RemoveAllValues(key Key, value Value) (*Node, error) {
 	return mapNode(node), nil
 }
 
-// Drop removes a key completely
+// RemoveKey removes a key completely
 // If specified node doesn't exist, a ErrNoSuchKey error is returned
-func (e *engineImpl) Drop(key Key) error {
+func (e *engineImpl) RemoveKey(key Key) error {
 	e.ModelLock.Lock()
 	defer e.ModelLock.Unlock()
 

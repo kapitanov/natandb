@@ -40,11 +40,11 @@ func TestRemoveValueNoSuchKey(t *testing.T) {
 	}
 }
 
-func TestDropNoSuchKey(t *testing.T) {
+func TestRemoveKeyNoSuchKey(t *testing.T) {
 	engine := createEngine(t)
 
-	err := engine.Drop(key)
-	t.Logf("Drop(\"%s\") -> %s\n", key, err)
+	err := engine.RemoveKey(key)
+	t.Logf("RemoveKey(\"%s\") -> %s\n", key, err)
 	if err != db.ErrNoSuchKey {
 		t.Errorf("ERROR: expected %s but got %s", db.ErrNoSuchKey, err)
 	}
@@ -297,7 +297,7 @@ func TestRemoveAllValues(t *testing.T) {
 	checkGetNoNode(t, engine, key)
 }
 
-func TestDropExistingKey(t *testing.T) {
+func TestRemoveKeyExistingKey(t *testing.T) {
 	value1 := db.Value("value1")
 	value2 := db.Value("value2")
 	engine := createEngine(t)
@@ -313,9 +313,9 @@ func TestDropExistingKey(t *testing.T) {
 	checkNode(t, node, key, []db.Value{value1, value1, value2}, 3)
 	checkGetNode(t, engine, node)
 
-	// Drop key
-	err = engine.Drop(key)
-	t.Logf("Drop(\"%s\") -> %s\n", key, err)
+	// Remove key
+	err = engine.RemoveKey(key)
+	t.Logf("RemoveKey(\"%s\") -> %s\n", key, err)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
