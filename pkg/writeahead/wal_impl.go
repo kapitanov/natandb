@@ -8,7 +8,7 @@ import (
 )
 
 type walImpl struct {
-	fs         storage.WriteAheadLogFile
+	fs         storage.Driver
 	serializer Serializer
 
 	lastID uint64
@@ -17,7 +17,7 @@ type walImpl struct {
 }
 
 // NewLog creates new write-ahead log instance
-func NewLog(fs storage.WriteAheadLogFile, serializer Serializer) (Log, error) {
+func NewLog(fs storage.Driver, serializer Serializer) (Log, error) {
 	wal := &walImpl{
 		fs:         fs,
 		serializer: serializer,
@@ -45,7 +45,7 @@ func (w *walImpl) Initialize() error {
 		w.lastID = 0
 	}
 
-	w.file, err = w.fs.Write()
+	w.file, err = w.fs.WriteWalFile()
 	if err != nil {
 		return err
 	}
@@ -90,7 +90,7 @@ func (w *walImpl) writeOneImpl(record *Record) error {
 
 // ReadChunkForward reads a list of records from a WAL file in forward direction with filtering by ID
 func (w *walImpl) ReadChunkForward(minID uint64, limit int) (RecordChunk, error) {
-	file, err := w.fs.Read()
+	file, err := w.fs.ReadWalFile()
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +149,7 @@ func (w *walImpl) ReadChunkForward(minID uint64, limit int) (RecordChunk, error)
 
 // ReadChunkBackward reads a list of records from a WAL file in backward direction with filtering by ID
 func (w *walImpl) ReadChunkBackward(maxID uint64, limit int) (RecordChunk, error) {
-	file, err := w.fs.Read()
+	file, err := w.fs.ReadWalFile()
 	if err != nil {
 		log.Printf("unable to read wal file: %s", err)
 		return nil, err

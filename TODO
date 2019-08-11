@@ -1,6 +1,6 @@
-[ ] Implement SnapshotFile
+[x] Implement SnapshotFile
 [x] Implement WriteAheadLogFile
-[ ] Merge storage.WriteAheadLogFile and storage.SnapshotFile into storage.Driver
+[x] Merge storage.WriteAheadLogFile and storage.SnapshotFile into storage.Driver
 [x] Command-line runner
 [x] Command-line client
 [ ] Background model snapshot write

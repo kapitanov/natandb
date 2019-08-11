@@ -14,12 +14,12 @@ type engineImpl struct {
 	Model     *model.Root
 	ModelLock *sync.Mutex
 	WALog     writeahead.Log
-	Snapshot  storage.SnapshotFile
+	Storage   storage.Driver
 }
 
 // NewEngine creates new instance of DB engine
-func NewEngine(log writeahead.Log, snapshot storage.SnapshotFile) (Engine, error) {
-	model, err := model.Restore(log, snapshot)
+func NewEngine(log writeahead.Log, driver storage.Driver) (Engine, error) {
+	model, err := model.Restore(log, driver)
 	if err != nil {
 		return nil, err
 	}
@@ -28,7 +28,7 @@ func NewEngine(log writeahead.Log, snapshot storage.SnapshotFile) (Engine, error
 		Model:     model,
 		ModelLock: new(sync.Mutex),
 		WALog:     log,
-		Snapshot:  snapshot,
+		Storage:   driver,
 	}
 
 	// TODO bg model flush
@@ -359,7 +359,7 @@ func (e *engineImpl) Close() error {
 		return err
 	}
 
-	file, err := e.Snapshot.Write()
+	file, err := e.Storage.WriteSnapshotFile()
 	if err != nil {
 		return err
 	}

@@ -3,7 +3,6 @@ package diag
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
@@ -24,13 +23,13 @@ func init() {
 	max := cmd.Flags().Uint64("max", ^uint64(0), "max ID to display")
 
 	cmd.Run = func(c *cobra.Command, args []string) {
-		walFile, err := storage.NewWriteAheadLogFile(filepath.Join(*dataDir, "journal.bin"))
+		driver, err := storage.NewDriver(*dataDir)
 		if err != nil {
-			log.Printf("unable to init wal file: %s", err)
+			log.Printf("unable to init storage driver: %s", err)
 			panic(err)
 		}
 
-		wal, err := writeahead.NewLog(walFile, writeahead.NewSerializer())
+		wal, err := writeahead.NewLog(driver, writeahead.NewSerializer())
 		if err != nil {
 			log.Printf("unable to init wal: %s", err)
 			panic(err)

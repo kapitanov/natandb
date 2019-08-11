@@ -44,9 +44,9 @@ const (
 )
 
 // Restore restores a data model from persistent storage and syncs it with WAL log
-func Restore(log writeahead.Log, snapshot storage.SnapshotFile) (*Root, error) {
+func Restore(log writeahead.Log, driver storage.Driver) (*Root, error) {
 	// Load a snapshot from a persistent storage
-	file, err := snapshot.Read()
+	file, err := driver.ReadSnapshotFile()
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +69,7 @@ func Restore(log writeahead.Log, snapshot storage.SnapshotFile) (*Root, error) {
 	// If model stage was not in sync with write-ahead log,
 	// then new model snapshot should be created
 	if lastChangeID != model.LastChangeID {
-		file, err := snapshot.Write()
+		file, err := driver.WriteSnapshotFile()
 		if err != nil && err != io.EOF {
 			return nil, err
 		}

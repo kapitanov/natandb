@@ -2,7 +2,6 @@ package diag
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/gosuri/uitable"
@@ -22,13 +21,13 @@ func init() {
 	dataDir := cmd.Flags().StringP("data", "d", "./data", "path to data directory")
 
 	cmd.Run = func(c *cobra.Command, args []string) {
-		snapshotFile, err := storage.NewSnapshotFile(filepath.Join(*dataDir, "snapshot.bin"))
+		driver, err := storage.NewDriver(*dataDir)
 		if err != nil {
-			log.Printf("unable to init snapshot file: %s", err)
+			log.Printf("unable to init storage driver: %s", err)
 			panic(err)
 		}
 
-		f, err := snapshotFile.Read()
+		f, err := driver.ReadSnapshotFile()
 		if err != nil {
 			log.Printf("unable to read snapshot file: %s", err)
 			panic(err)

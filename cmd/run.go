@@ -3,7 +3,6 @@ package cmd
 import (
 	"os"
 	"os/signal"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -24,25 +23,19 @@ func init() {
 	endpoint := cmd.Flags().StringP("listen", "l", "0.0.0.0:18081", "endpoint to listen")
 
 	cmd.Run = func(c *cobra.Command, args []string) {
-		walFile, err := storage.NewWriteAheadLogFile(filepath.Join(*dataDir, "journal.bin"))
+		driver, err := storage.NewDriver(*dataDir)
 		if err != nil {
-			log.Printf("unable to init wal file: %s", err)
+			log.Printf("unable to init storage driver: %s", err)
 			panic(err)
 		}
 
-		snapshotFile, err := storage.NewSnapshotFile(filepath.Join(*dataDir, "snapshot.bin"))
-		if err != nil {
-			log.Printf("unable to init snapshot file: %s", err)
-			panic(err)
-		}
-
-		wal, err := writeahead.NewLog(walFile, writeahead.NewSerializer())
+		wal, err := writeahead.NewLog(driver, writeahead.NewSerializer())
 		if err != nil {
 			log.Printf("unable to init wal: %s", err)
 			panic(err)
 		}
 
-		engine, err := db.NewEngine(wal, snapshotFile)
+		engine, err := db.NewEngine(wal, driver)
 		if err != nil {
 			log.Printf("unable to init engine: %s", err)
 			panic(err)

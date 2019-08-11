@@ -8,18 +8,15 @@ import (
 
 var log = l.New("storage")
 
-// SnapshotFile provides access to snapshot storage files
-type SnapshotFile interface {
-	// Read opens data snapshot file file for reading
-	Read() (io.ReadCloser, error)
-	// Write opens data snapshot file for writing
-	Write() (io.WriteCloser, error)
-}
+// Driver provides access to persistent data streams
+type Driver interface {
+	// ReadWalFile opens WAL log file for reading
+	ReadWalFile() (io.ReadSeeker, error)
+	// WriteWalFile opens WAL log file for writing
+	WriteWalFile() (io.WriteCloser, error)
 
-// WriteAheadLogFile provides access to write-ahead log data streams
-type WriteAheadLogFile interface {
-	// Read opens WAL log file for reading
-	Read() (io.ReadSeeker, error)
-	// Write opens WAL log file for writing
-	Write() (io.WriteCloser, error)
+	// ReadSnapshotFile opens data snapshot file file for reading
+	ReadSnapshotFile() (io.ReadCloser, error)
+	// WriteSnapshotFile opens data snapshot file for writing
+	WriteSnapshotFile() (io.WriteCloser, error)
 }
