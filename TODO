@@ -1,0 +1,13 @@
+[ ] Implement SnapshotFile
+[x] Implement WriteAheadLogFile
+[ ] Merge storage.WriteAheadLogFile and storage.SnapshotFile into storage.Driver
+[x] Command-line runner
+[x] Command-line client
+[ ] Background model snapshot write
+[ ] Background WAL compression
+[ ] WAL error correction
+[ ] WAL version check
+[ ] Proper logging
+[ ] Generate RPM package
+[ ] Generate Docker image
+[ ] CLI command for perf tests

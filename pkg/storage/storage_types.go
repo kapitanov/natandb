@@ -2,7 +2,11 @@ package storage
 
 import (
 	"io"
+
+	l "github.com/kapitanov/natandb/pkg/log"
 )
+
+var log = l.New("storage")
 
 // SnapshotFile provides access to snapshot storage files
 type SnapshotFile interface {

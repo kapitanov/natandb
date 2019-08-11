@@ -4,7 +4,11 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+
+	l "github.com/kapitanov/natandb/pkg/log"
 )
+
+var log = l.New("wal")
 
 // RecordType is a type code for a write-ahead log record
 type RecordType = uint8

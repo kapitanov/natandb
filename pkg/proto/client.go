@@ -3,8 +3,11 @@ package proto
 import (
 	context "context"
 
+	l "github.com/kapitanov/natandb/pkg/log"
 	grpc "google.golang.org/grpc"
 )
+
+var clientLog = l.New("client")
 
 // Client is a client for NatanDB service
 type Client interface {
@@ -20,11 +23,14 @@ type clientImpl struct {
 
 // NewClient creates new client and connects it to specified remote service
 func NewClient(address string) (Client, error) {
+	clientLog.Printf("connecting to %s...", address)
 	connection, err := grpc.Dial(address, grpc.WithInsecure())
 	if err != nil {
+		clientLog.Printf("unable to connect. %s", err)
 		return nil, err
 	}
 
+	clientLog.Printf("connected to %s", address)
 	client := NewServiceClient(connection)
 	c := clientImpl{
 		connection: connection,
@@ -60,8 +66,7 @@ func (c *clientImpl) SetValue(ctx context.Context, in *SetValueRequest, opts ...
 // If specified node doesn't exists, it will be created
 // A specified value will be added to node even if it already exists
 func (c *clientImpl) AddValue(ctx context.Context, in *AddValueRequest, opts ...grpc.CallOption) (*Node, error) {
-	// TODO not implemented yet
-	return nil, nil
+	return c.client.AddValue(ctx, in, opts...)
 }
 
 // AddUniqueValue defines an "append value" operation
@@ -94,6 +99,7 @@ func (c *clientImpl) RemoveKey(ctx context.Context, in *RemoveKeyRequest, opts .
 
 // Close shuts down client connection
 func (c *clientImpl) Close() error {
+	clientLog.Printf("disconnecting from %s", c.connection.Target())
 	err := c.connection.Close()
 	if err != nil {
 		return err

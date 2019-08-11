@@ -151,6 +151,7 @@ func (w *walImpl) ReadChunkForward(minID uint64, limit int) (RecordChunk, error)
 func (w *walImpl) ReadChunkBackward(maxID uint64, limit int) (RecordChunk, error) {
 	file, err := w.fs.Read()
 	if err != nil {
+		log.Printf("unable to read wal file: %s", err)
 		return nil, err
 	}
 
@@ -162,12 +163,16 @@ func (w *walImpl) ReadChunkBackward(maxID uint64, limit int) (RecordChunk, error
 	}()
 
 	// Seek to the end of file
-	_, err = file.Seek(0, io.SeekEnd)
+	length, err := file.Seek(0, io.SeekEnd)
 	if err != nil {
 		return nil, err
 	}
 
 	// Scan file backward until we find a record with ID < maxID
+	if length == 0 {
+		return RecordChunk(make([]*Record, 0)), nil
+	}
+
 	var metadata RecordMetadata
 	for {
 		err = w.serializer.GetRecordMetadataBackward(file, &metadata)

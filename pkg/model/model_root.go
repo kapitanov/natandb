@@ -88,7 +88,7 @@ func (m *Root) replayWriteAheadLog(log writeahead.Log) error {
 	chunkSize := 1000
 
 	for {
-		chunk, err := log.ReadChunkForward(minID, chunkSize)
+		chunk, err := log.ReadChunkForward(minID+1, chunkSize)
 		if err != nil {
 			return err
 		}
@@ -98,6 +98,10 @@ func (m *Root) replayWriteAheadLog(log writeahead.Log) error {
 		}
 
 		for _, record := range chunk {
+			if minID < record.ID {
+				minID = record.ID
+			}
+
 			err = m.Apply(record)
 			if err != nil {
 				return err
