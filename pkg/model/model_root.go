@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 
+	l "github.com/kapitanov/natandb/pkg/log"
 	"github.com/kapitanov/natandb/pkg/writeahead"
 )
 
@@ -17,6 +18,8 @@ func (e Error) Error() string {
 func (e Error) String() string {
 	return string(e)
 }
+
+var log = l.New("model")
 
 const (
 	// ErrChangeAlreadyApplied is returned when a write-ahead record has been applied to a model already
@@ -83,12 +86,13 @@ func (m *Root) GetOrCreateNode(key string) *Node {
 }
 
 // replayWriteAheadLog syncs data model with write-ahead log
-func (m *Root) replayWriteAheadLog(log writeahead.Log) error {
+func (m *Root) replayWriteAheadLog(wal writeahead.Log) error {
 	minID := m.LastChangeID
 	chunkSize := 1000
 
+	log.Verbosef("replaying journal since %d", minID)
 	for {
-		chunk, err := log.ReadChunkForward(minID+1, chunkSize)
+		chunk, err := wal.ReadChunkForward(minID+1, chunkSize)
 		if err != nil {
 			return err
 		}
@@ -109,18 +113,23 @@ func (m *Root) replayWriteAheadLog(log writeahead.Log) error {
 		}
 	}
 
+	log.Verbosef("replayed journal tikk %d", m.LastChangeID)
 	return nil
 }
 
 // Apply applied a write-ahead log record to a data model
 func (m *Root) Apply(record *writeahead.Record) error {
 	if record.ID <= m.LastChangeID {
+		log.Errorf("change #%d is already applied to model", record.ID)
 		return ErrChangeAlreadyApplied
 	}
 
 	if record.Key != "" {
 		switch record.Type {
 		case writeahead.None:
+			if log.IsEnabled(l.Verbose) {
+				log.Verbosef("empty wal record: #%d", record.ID)
+			}
 			break
 
 		case writeahead.AddValue:
@@ -138,6 +147,10 @@ func (m *Root) Apply(record *writeahead.Record) error {
 				if err != nil {
 					return err
 				}
+			} else {
+				if log.IsEnabled(l.Verbose) {
+					log.Verbosef("node \"%s\" is not found while applying wal record: #%d", record.Key, record.ID)
+				}
 			}
 			break
 
@@ -150,15 +163,24 @@ func (m *Root) Apply(record *writeahead.Record) error {
 				}
 
 				delete(m.NodesMap, record.Key)
+			} else {
+				if log.IsEnabled(l.Verbose) {
+					log.Verbosef("node \"%s\" is not found while applying wal record: #%d", record.Key, record.ID)
+				}
 			}
 
 			break
 
 		default:
+			log.Errorf("unknown wal record type: %d", record.Type)
 			return fmt.Errorf("unknown wal record type: %d", record.Type)
 		}
 	}
 
 	m.LastChangeID = record.ID
+	if log.IsEnabled(l.Verbose) {
+		log.Verbosef("applied wal record #%d", record.ID)
+	}
+
 	return nil
 }

@@ -44,7 +44,7 @@ const (
 )
 
 // Restore restores a data model from persistent storage and syncs it with WAL log
-func Restore(log writeahead.Log, driver storage.Driver) (*Root, error) {
+func Restore(wal writeahead.Log, driver storage.Driver) (*Root, error) {
 	// Load a snapshot from a persistent storage
 	file, err := driver.ReadSnapshotFile()
 	if err != nil {
@@ -61,7 +61,7 @@ func Restore(log writeahead.Log, driver storage.Driver) (*Root, error) {
 
 	// Then replay write-ahead log to restore model's actual state
 	lastChangeID := model.LastChangeID
-	err = model.replayWriteAheadLog(log)
+	err = model.replayWriteAheadLog(wal)
 	if err != nil {
 		return nil, err
 	}
@@ -93,6 +93,7 @@ func Restore(log writeahead.Log, driver storage.Driver) (*Root, error) {
 func ReadSnapshot(file io.Reader) (*Root, error) {
 	model := New()
 
+	log.Verbosef("reading data snapshot")
 	if file != nil {
 		// First, read a schema version
 		version, err := util.ReadUint32(file)
@@ -114,7 +115,7 @@ func ReadSnapshot(file io.Reader) (*Root, error) {
 			node, err := readNodeFromSnapshot(file)
 			if err != nil {
 				if err == io.EOF {
-					return model, nil
+					break
 				}
 
 				return nil, err
@@ -130,6 +131,8 @@ func ReadSnapshot(file io.Reader) (*Root, error) {
 				model.LastChangeID = node.LastChangeID
 			}
 		}
+
+		log.Verbosef("restored %d nodes from snapshot", len(model.NodesMap))
 	}
 
 	return model, nil
@@ -137,6 +140,7 @@ func ReadSnapshot(file io.Reader) (*Root, error) {
 
 // WriteSnapshot writes model snapshot into its binary form
 func (m *Root) WriteSnapshot(file io.Writer) error {
+	log.Verbosef("writing data snapshot")
 	err := util.WriteUint32(file, schemaVersion)
 	if err != nil {
 		return err
@@ -148,6 +152,8 @@ func (m *Root) WriteSnapshot(file io.Writer) error {
 			return err
 		}
 	}
+
+	log.Verbosef("data snapshot has been written")
 	return nil
 }
 

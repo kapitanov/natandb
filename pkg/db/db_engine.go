@@ -5,10 +5,13 @@ import (
 	"strings"
 	"sync"
 
+	l "github.com/kapitanov/natandb/pkg/log"
 	"github.com/kapitanov/natandb/pkg/model"
 	"github.com/kapitanov/natandb/pkg/storage"
 	"github.com/kapitanov/natandb/pkg/writeahead"
 )
+
+var log = l.New("engine")
 
 type engineImpl struct {
 	Model     *model.Root
@@ -18,8 +21,9 @@ type engineImpl struct {
 }
 
 // NewEngine creates new instance of DB engine
-func NewEngine(log writeahead.Log, driver storage.Driver) (Engine, error) {
-	model, err := model.Restore(log, driver)
+func NewEngine(wal writeahead.Log, driver storage.Driver) (Engine, error) {
+	log.Verbosef("initializing engine")
+	model, err := model.Restore(wal, driver)
 	if err != nil {
 		return nil, err
 	}
@@ -27,12 +31,14 @@ func NewEngine(log writeahead.Log, driver storage.Driver) (Engine, error) {
 	engine := &engineImpl{
 		Model:     model,
 		ModelLock: new(sync.Mutex),
-		WALog:     log,
+		WALog:     wal,
 		Storage:   driver,
 	}
 
 	// TODO bg model flush
 	// TODO bg wal compression
+
+	log.Printf("engine is initialized")
 
 	return engine, nil
 }

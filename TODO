@@ -7,7 +7,7 @@
 [ ] Background WAL compression
 [ ] WAL error correction
 [ ] WAL version check
-[ ] Proper logging
+[x] Proper logging
 [ ] Generate RPM package
 [ ] Generate Docker image
 [ ] CLI command for perf tests

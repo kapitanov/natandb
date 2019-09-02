@@ -151,7 +151,7 @@ func (w *walImpl) ReadChunkForward(minID uint64, limit int) (RecordChunk, error)
 func (w *walImpl) ReadChunkBackward(maxID uint64, limit int) (RecordChunk, error) {
 	file, err := w.fs.ReadWalFile()
 	if err != nil {
-		log.Printf("unable to read wal file: %s", err)
+		log.Errorf("unable to read wal file: %s", err)
 		return nil, err
 	}
 

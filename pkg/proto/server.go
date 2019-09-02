@@ -5,8 +5,11 @@ import (
 	"net"
 
 	"github.com/kapitanov/natandb/pkg/db"
+	"github.com/kapitanov/natandb/pkg/log"
 	"google.golang.org/grpc"
 )
+
+var serverLog = log.New("server")
 
 // Server is a GRRC service wrapper
 type Server interface {
@@ -37,6 +40,7 @@ func NewServer(engine db.Engine, endpoint string) Server {
 
 // Start starts serer
 func (s *serverImpl) Start() error {
+	serverLog.Verbosef("starting server")
 	RegisterServiceServer(s.server, s)
 
 	listener, err := net.Listen("tcp", s.endpoint)
@@ -45,22 +49,19 @@ func (s *serverImpl) Start() error {
 	}
 
 	go func() {
-		s.server.Serve(listener)
+		_ = s.server.Serve(listener)
 	}()
 
+	serverLog.Printf("server is running at \"tcp://%s\"", s.endpoint)
 	s.listener = listener
 	return nil
 }
 
 // Close shuts server down
 func (s *serverImpl) Close() error {
+	serverLog.Verbosef("shutting down")
 	s.server.GracefulStop()
-
-	err := s.listener.Close()
-	if err != nil {
-		return err
-	}
-
+	serverLog.Verbosef("shutdown completed")
 	return nil
 }
 
