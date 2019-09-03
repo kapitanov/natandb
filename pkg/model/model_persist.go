@@ -11,15 +11,16 @@ import (
 
 // Model binary format:
 //
-// +---+----------+----------------+
-// | # | Length   | Field          |
-// +---+----------+----------------+
-// | 1 | 4 bytes  | Schema version |
-// | 2 | variable | Nodes[0]       |
-// | 3 | variable | Nodes[1]       |
-// |   | ...      | ...            |
-// | N | variable | Nodes[N-1]     |
-// +---+----------+----------------+
+// +---+----------+------------------------+
+// | # | Length   | Field                  |
+// +---+----------+------------------------+
+// | 1 | 4 bytes  | Schema version         |
+// | 2 | 8 bytes  | Model's last change ID |
+// | 3 | variable | Nodes[0]               |
+// | 4 | variable | Nodes[1]               |
+// |   | ...      | ...                    |
+// | N | variable | Nodes[N-1]             |
+// +---+----------+------------------------+
 //
 // Where each node has the following format:
 //
@@ -45,6 +46,8 @@ const (
 
 // Restore restores a data model from persistent storage and syncs it with WAL log
 func Restore(wal writeahead.Log, driver storage.Driver) (*Root, error) {
+	log.Printf("restoring model state")
+
 	// Load a snapshot from a persistent storage
 	file, err := driver.ReadSnapshotFile()
 	if err != nil {
@@ -110,7 +113,13 @@ func ReadSnapshot(file io.Reader) (*Root, error) {
 			return nil, fmt.Errorf("incompatible schema: #%d", version)
 		}
 
-		// Read node snapshots until we see an EOF
+		// Second, read a last change ID
+		model.LastChangeID, err = util.ReadUint64(file)
+		if err != nil {
+			return nil, err
+		}
+
+		// Then, read node snapshots until we see an EOF
 		for {
 			node, err := readNodeFromSnapshot(file)
 			if err != nil {
@@ -141,11 +150,20 @@ func ReadSnapshot(file io.Reader) (*Root, error) {
 // WriteSnapshot writes model snapshot into its binary form
 func (m *Root) WriteSnapshot(file io.Writer) error {
 	log.Verbosef("writing data snapshot")
+
+	// First, write a schema version
 	err := util.WriteUint32(file, schemaVersion)
 	if err != nil {
 		return err
 	}
 
+	// Second, write a last change ID
+	err = util.WriteUint64(file, m.LastChangeID)
+	if err != nil {
+		return err
+	}
+
+	// Then, write node snapshots sequentally
 	for _, node := range m.NodesMap {
 		err = node.writeSnapshot(file)
 		if err != nil {

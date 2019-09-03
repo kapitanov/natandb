@@ -19,7 +19,7 @@ func init() {
 
 	rootCmd.AddCommand(cmd)
 
-	clientCommand(cmd, func(args []string, client proto.Client, ctx context.Context, quiet bool) error {
+	clientCommand(cmd, func(args []string, client proto.Client, ctx context.Context) error {
 		request := proto.RemoveKeyRequest{
 			Key: args[0],
 		}

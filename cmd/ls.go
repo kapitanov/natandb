@@ -24,7 +24,7 @@ func init() {
 	max := cmd.Flags().Uint32P("max", "m", 100, "max items to display")
 	token := cmd.Flags().Uint64P("token", "t", 0, "db concurrency token")
 
-	clientCommand(cmd, func(args []string, client proto.Client, ctx context.Context, quiet bool) error {
+	clientCommand(cmd, func(args []string, client proto.Client, ctx context.Context) error {
 		request := proto.ListRequest{
 			Skip:    *skip,
 			Limit:   *max,

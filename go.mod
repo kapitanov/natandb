@@ -10,5 +10,6 @@ require (
 	github.com/mattn/go-colorable v0.1.2 // indirect
 	github.com/mattn/go-runewidth v0.0.4 // indirect
 	github.com/spf13/cobra v0.0.5
+	gonum.org/v1/gonum v0.0.0-20190902003836-43865b531bee
 	google.golang.org/grpc v1.22.1
 )

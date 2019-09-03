@@ -11,11 +11,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type clientCommandFunc = func(args []string, client proto.Client, ctx context.Context, quiet bool) error
+type clientCommandFunc = func(args []string, client proto.Client, ctx context.Context) error
 
 func clientCommand(cmd *cobra.Command, callback clientCommandFunc) {
 	endpoint := cmd.Flags().StringP("endpoint", "e", "127.0.0.1:18081", "server endpoint")
-	quiet := cmd.Flags().BoolP("quiet", "q", false, "quiet output")
 
 	cmd.Run = func(c *cobra.Command, args []string) {
 		log.Printf("connecting to %s...", *endpoint)
@@ -44,7 +43,7 @@ func clientCommand(cmd *cobra.Command, callback clientCommandFunc) {
 			}
 		}()
 
-		err = callback(args, client, ctx, *quiet)
+		err = callback(args, client, ctx)
 		signals <- syscall.SIGQUIT
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "%s\n", err)
@@ -52,10 +51,10 @@ func clientCommand(cmd *cobra.Command, callback clientCommandFunc) {
 	}
 }
 
-type nodeCommandFunc = func(args []string, client proto.Client, ctx context.Context, quiet bool) (*proto.Node, error)
+type nodeCommandFunc = func(args []string, client proto.Client, ctx context.Context) (*proto.Node, error)
 
 func clientNodeCommand(cmd *cobra.Command, callback nodeCommandFunc) {
-	clientCommand(cmd, func(args []string, client proto.Client, ctx context.Context, quiet bool) error {
+	clientCommand(cmd, func(args []string, client proto.Client, ctx context.Context) error {
 		ctx, cancel := context.WithCancel(context.Background())
 
 		signals := make(chan os.Signal, 1)
@@ -68,7 +67,7 @@ func clientNodeCommand(cmd *cobra.Command, callback nodeCommandFunc) {
 			}
 		}()
 
-		node, err := callback(args, client, ctx, quiet)
+		node, err := callback(args, client, ctx)
 		signals <- syscall.SIGQUIT
 		if err != nil {
 			return err

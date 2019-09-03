@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/kapitanov/natandb/cmd/diag"
+	"github.com/kapitanov/natandb/cmd/test"
 	pkgLog "github.com/kapitanov/natandb/pkg/log"
 	"github.com/spf13/cobra"
 )
@@ -24,6 +25,8 @@ var rootCmd = &cobra.Command{
 	TraverseChildren: true,
 }
 
+var quiet bool
+
 // Main is an entry point for CLI application
 func Main(args []string) {
 	err := rootCmd.Execute()
@@ -36,6 +39,7 @@ func Main(args []string) {
 func init() {
 	version := rootCmd.PersistentFlags().Bool("version", false, "display version and exit")
 	verbose := rootCmd.PersistentFlags().BoolP("verbose", "v", false, "enable verbose logging")
+	quietFlag := rootCmd.PersistentFlags().BoolP("quiet", "q", false, "quiet output")
 
 	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
 		if *version {
@@ -43,11 +47,19 @@ func init() {
 			os.Exit(0)
 		}
 
-		if *verbose {
+		quiet = *quietFlag
+
+		if quiet {
+			l.SetOutput(ioutil.Discard)
+		} else {
+			if *verbose {
+				pkgLog.SetMinLevel(pkgLog.Verbose)
+			} else {
+				pkgLog.SetMinLevel(pkgLog.Info)
+			}
+
 			l.SetOutput(os.Stderr)
 			l.SetFlags(l.Ldate | l.Ltime | l.LUTC)
-		} else {
-			l.SetOutput(ioutil.Discard)
 		}
 	}
 
@@ -57,4 +69,5 @@ func init() {
 	}
 
 	rootCmd.AddCommand(diag.Command)
+	rootCmd.AddCommand(test.Command)
 }

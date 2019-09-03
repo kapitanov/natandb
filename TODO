@@ -10,4 +10,5 @@
 [x] Proper logging
 [ ] Generate RPM package
 [ ] Generate Docker image
-[ ] CLI command for perf tests
+[x] CLI command for perf tests
+[ ] Fix broken test (don't even build)

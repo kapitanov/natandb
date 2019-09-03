@@ -90,8 +90,17 @@ func (m *Root) replayWriteAheadLog(wal writeahead.Log) error {
 	minID := m.LastChangeID
 	chunkSize := 1000
 
-	log.Verbosef("replaying journal since %d", minID)
+	chunk, err := wal.ReadChunkBackward(^uint64(0), 1)
+	if err != nil {
+		return err
+	}
+
+	if len(chunk) > 0 && m.LastChangeID < chunk[0].ID {
+		log.Printf("model is out of date, will replay journal (%d/%d)", m.LastChangeID, chunk[0].ID)
+	}
+
 	for {
+		log.Verbosef("replaying journal since %d", minID)
 		chunk, err := wal.ReadChunkForward(minID+1, chunkSize)
 		if err != nil {
 			return err
@@ -113,7 +122,7 @@ func (m *Root) replayWriteAheadLog(wal writeahead.Log) error {
 		}
 	}
 
-	log.Verbosef("replayed journal tikk %d", m.LastChangeID)
+	log.Verbosef("replayed journal till %d", m.LastChangeID)
 	return nil
 }
 

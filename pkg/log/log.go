@@ -34,7 +34,7 @@ func SetMinLevel(level Level) {
 }
 
 func IsEnabled(level Level) bool {
-	return minLogLevel <= level
+	return level >= minLogLevel
 }
 
 type loggerImpl struct {

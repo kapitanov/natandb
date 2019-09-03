@@ -17,7 +17,7 @@ func init() {
 
 	rootCmd.AddCommand(cmd)
 
-	clientNodeCommand(cmd, func(args []string, client proto.Client, ctx context.Context, quiet bool) (*proto.Node, error) {
+	clientNodeCommand(cmd, func(args []string, client proto.Client, ctx context.Context) (*proto.Node, error) {
 		request := proto.SetValueRequest{
 			Key:    args[0],
 			Values: make([][]byte, 0),
