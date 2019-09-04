@@ -10,6 +10,8 @@ Totally work-in-progress (doesn't event compile yet).
 
 ### Read performance
 
+![](docs/read-perf.png)
+
 | Concurrent clients | Num of operations | Performance | Std. dev |
 |--------------------|-------------------|-------------|----------|
 | 1                  | 10000             | 7708.5 rps  | 658.9    |
@@ -21,7 +23,23 @@ Totally work-in-progress (doesn't event compile yet).
 | 7                  | 10000             | 33188.6 rps | 3223.1   |
 | 8                  | 10000             | 35290.2 rps | 4140.1   |
 
+Test protocol:
+
+1. Start NatanDB server:
+
+   ```shell
+   rm -rf ./data && ./natandb run -d ./data
+   ```
+
+2. Run tests (in a separate terminal):
+
+   ```shell
+   for i in `seq 1 8`; do ./natandb test read -n 10000 -q -t $i $i; done
+   ```
+
 ### Write performance
+
+![](docs/write-perf.png)
 
 | Concurrent clients | Num of operations | Performance | Std. dev |
 |--------------------|-------------------|-------------|----------|
@@ -33,6 +51,20 @@ Totally work-in-progress (doesn't event compile yet).
 | 6                  | 10000             | 12815.6 rps | 992.2    |
 | 7                  | 10000             | 12609.9 rps | 1957.7   |
 | 8                  | 10000             | 13344.6 rps | 878.0    |
+
+Test protocol:
+
+1. Start NatanDB server:
+
+   ```shell
+   rm -rf ./data && ./natandb run -d ./data
+   ```
+
+2. Run tests (in a separate terminal):
+
+   ```shell
+   for i in `seq 1 8`; do ./natandb test write -n 10000 -q -t $i $i; done
+   ```
 
 ## License
 
