@@ -1,3 +1,5 @@
+# TODO
+
 [x] Implement SnapshotFile
 [x] Implement WriteAheadLogFile
 [x] Merge storage.WriteAheadLogFile and storage.SnapshotFile into storage.Driver
@@ -12,3 +14,4 @@
 [ ] Generate Docker image
 [x] CLI command for perf tests
 [ ] Fix broken test (don't even build)
+[ ] Use write-through mode for WAL
