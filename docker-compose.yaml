@@ -1,0 +1,15 @@
+version: "3"
+services:
+  natandb:
+    image: natandb:latest
+    build: .
+    container_name: natandb
+    restart: always
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "1"
+    ports:
+    - 18081:18081
+    volumes:
+    - ./data:/var/lib/natandb

@@ -11,7 +11,7 @@
 [ ] WAL version check
 [x] Proper logging
 [ ] Generate RPM package
-[ ] Generate Docker image
+[x] Generate Docker image
 [x] CLI command for perf tests
 [ ] Fix broken test (don't even build)
 [ ] Use write-through mode for WAL
