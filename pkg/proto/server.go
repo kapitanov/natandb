@@ -7,6 +7,8 @@ import (
 	"github.com/kapitanov/natandb/pkg/db"
 	"github.com/kapitanov/natandb/pkg/log"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var serverLog = log.New("server")
@@ -70,7 +72,7 @@ func (s *serverImpl) Close() error {
 func (s *serverImpl) List(context context.Context, request *ListRequest) (*PagedNodeList, error) {
 	list, err := s.engine.List(db.Key(request.Prefix), uint(request.Skip), uint(request.Limit), request.Version)
 	if err != nil {
-		return nil, err
+		return nil, mapServerError(err)
 	}
 
 	response := PagedNodeList{
@@ -99,7 +101,7 @@ func (s *serverImpl) GetVersion(context context.Context, request *None) (*DBVers
 func (s *serverImpl) GetValue(context context.Context, request *GetRequest) (*Node, error) {
 	node, err := s.engine.Get(db.Key(request.Key))
 	if err != nil {
-		return nil, err
+		return nil, mapServerError(err)
 	}
 
 	response := serverMapNode(node)
@@ -116,7 +118,7 @@ func (s *serverImpl) SetValue(context context.Context, request *SetValueRequest)
 
 	node, err := s.engine.Set(db.Key(request.Key), values)
 	if err != nil {
-		return nil, err
+		return nil, mapServerError(err)
 	}
 
 	response := serverMapNode(node)
@@ -129,7 +131,7 @@ func (s *serverImpl) SetValue(context context.Context, request *SetValueRequest)
 func (s *serverImpl) AddValue(context context.Context, request *AddValueRequest) (*Node, error) {
 	node, err := s.engine.AddValue(db.Key(request.Key), db.Value(request.Value))
 	if err != nil {
-		return nil, err
+		return nil, mapServerError(err)
 	}
 
 	response := serverMapNode(node)
@@ -142,7 +144,7 @@ func (s *serverImpl) AddValue(context context.Context, request *AddValueRequest)
 func (s *serverImpl) AddUniqueValue(context context.Context, request *AddUniqueValueRequest) (*Node, error) {
 	node, err := s.engine.AddUniqueValue(db.Key(request.Key), db.Value(request.Value))
 	if err != nil {
-		return nil, err
+		return nil, mapServerError(err)
 	}
 
 	response := serverMapNode(node)
@@ -155,7 +157,7 @@ func (s *serverImpl) AddUniqueValue(context context.Context, request *AddUniqueV
 func (s *serverImpl) RemoveValue(context context.Context, request *RemoveValueRequest) (*Node, error) {
 	node, err := s.engine.RemoveValue(db.Key(request.Key), db.Value(request.Value))
 	if err != nil {
-		return nil, err
+		return nil, mapServerError(err)
 	}
 
 	response := serverMapNode(node)
@@ -169,7 +171,7 @@ func (s *serverImpl) RemoveValue(context context.Context, request *RemoveValueRe
 func (s *serverImpl) RemoveAllValues(context context.Context, request *RemoveAllValuesRequest) (*Node, error) {
 	node, err := s.engine.RemoveAllValues(db.Key(request.Key), db.Value(request.Value))
 	if err != nil {
-		return nil, err
+		return nil, mapServerError(err)
 	}
 
 	response := serverMapNode(node)
@@ -181,7 +183,7 @@ func (s *serverImpl) RemoveAllValues(context context.Context, request *RemoveAll
 func (s *serverImpl) RemoveKey(context context.Context, request *RemoveKeyRequest) (*None, error) {
 	err := s.engine.RemoveKey(db.Key(request.Key))
 	if err != nil {
-		return nil, err
+		return nil, mapServerError(err)
 	}
 
 	response := &None{}
@@ -199,4 +201,30 @@ func serverMapNode(node *db.Node) *Node {
 		Values:  values,
 		Version: node.Version,
 	}
+}
+
+func mapServerError(err error) error {
+	switch err {
+	case context.Canceled:
+		return status.Error(codes.Canceled, err.Error())
+	case context.DeadlineExceeded:
+		return status.Error(codes.DeadlineExceeded, err.Error())
+	}
+
+	switch e := err.(type) {
+	case db.Error:
+		switch e {
+		case db.ErrNoSuchKey:
+			return status.Error(codes.NotFound, e.String())
+		case db.ErrDuplicateValue:
+			return status.Error(codes.AlreadyExists, e.String())
+		case db.ErrDataOutOfDate:
+			return status.Error(codes.FailedPrecondition, e.String())
+		case db.ErrNoSuchValue:
+			return status.Error(codes.InvalidArgument, e.String())
+		}
+	}
+
+	panic(err)
+	return err
 }

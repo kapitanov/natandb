@@ -565,23 +565,22 @@ type inMemoryFile struct {
 	capacity    int
 }
 
-func NewInMemoryFile(t *testing.T) *inMemoryFile{
+func NewInMemoryFile(t *testing.T) *inMemoryFile {
 	return &inMemoryFile{
 		t:      t,
 		buffer: make([]byte, 0),
 	}
 }
 
-
 func NewInMemoryStorageDriver(t *testing.T) storage.Driver {
 	return &inMemoryFileSystem{
 		walFile:      NewInMemoryFile(t),
-		snapshotFile:      NewInMemoryFile(t),
+		snapshotFile: NewInMemoryFile(t),
 	}
 }
 
 type inMemoryFileSystem struct {
-	walFile *inMemoryFile
+	walFile      *inMemoryFile
 	snapshotFile *inMemoryFile
 }
 
