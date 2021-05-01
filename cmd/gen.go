@@ -1,12 +1,11 @@
 package cmd
 
 import (
+	"github.com/kapitanov/natandb/pkg/util"
 	"io"
 	"os"
 
 	"github.com/spf13/cobra"
-
-	"github.com/kapitanov/natandb/pkg/fs"
 )
 
 func init() {
@@ -27,7 +26,7 @@ func init() {
 			if len(args) > 0 {
 				path := args[0]
 
-				err := fs.MkDir(path)
+				err := util.MkDir(path)
 				if err != nil {
 					panic(err)
 				}
@@ -64,7 +63,7 @@ func init() {
 			if len(args) > 0 {
 				path := args[0]
 
-				err := fs.MkDir(path)
+				err := util.MkDir(path)
 				if err != nil {
 					panic(err)
 				}

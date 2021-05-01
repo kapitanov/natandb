@@ -14,6 +14,4 @@ VOLUME /var/lib/natandb
 EXPOSE 18081
 HEALTHCHECK --start-period=30s CMD curl -f http://localhost:18081/api || exit 1
 
-#ENTRYPOINT /opt/natandb/natandb
-#CMD /opt/natandb/natandb run -d "$DATA_DIR" -l "$LISTEN_ADDR"
 CMD [ "/opt/natandb/natandb", "run", "--data", "/var/lib/natandb", "--listen", "0.0.0.0:18081" ]

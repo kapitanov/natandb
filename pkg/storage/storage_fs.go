@@ -1,11 +1,10 @@
 package storage
 
 import (
+	"github.com/kapitanov/natandb/pkg/util"
 	"io"
 	"os"
 	"path/filepath"
-
-	"github.com/kapitanov/natandb/pkg/fs"
 )
 
 type driverImpl struct {
@@ -22,7 +21,7 @@ func NewDriver(directory string) (Driver, error) {
 	}
 
 	log.Verbosef("using directory \"%s\"", directory)
-	err = fs.MkDir(directory)
+	err = util.MkDir(directory)
 	if err != nil {
 		log.Errorf("unable to initialize storage driver. %s", err)
 		return nil, err

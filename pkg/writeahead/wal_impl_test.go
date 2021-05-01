@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/kapitanov/natandb/pkg/storage"
-	writeahead "github.com/kapitanov/natandb/pkg/writeahead"
+	"github.com/kapitanov/natandb/pkg/writeahead"
 )
 
 const (

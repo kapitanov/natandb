@@ -1,0 +1,12 @@
+docker-compose.yaml
+.idea
+.github
+docs
+LICENSE
+README.md
+Dockerfile
+artifacts
+natandb
+natandb.exe
+.git
+.editorconfig

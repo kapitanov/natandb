@@ -92,17 +92,17 @@ func testCmd(cmd *cobra.Command, test perfTest) {
 			}
 
 			rates = append(rates, rate)
-			fmt.Printf("\rITERATION %2d/%d: total time %0.3f s\trate %0.1f rps\n", iter+1, numIterations, duration.Seconds(), rate)			
+			fmt.Printf("\rITERATION %2d/%d: total time %0.3f s\trate %0.1f rps\n", iter+1, numIterations, duration.Seconds(), rate)
 		}
 
-		weights:=make([]float64, len(rates))
-		for i := range  rates {
+		weights := make([]float64, len(rates))
+		for i := range rates {
 			weights[i] = 1
 		}
 
-		mean,std := stat.MeanStdDev(rates, weights)
-		fmt.Printf("MEAN RATE %0.1f rps\n",mean)		
-		fmt.Printf("STD DEV %0.1f\n",std)		
+		mean, std := stat.MeanStdDev(rates, weights)
+		fmt.Printf("MEAN RATE %0.1f rps\n", mean)
+		fmt.Printf("STD DEV %0.1f\n", std)
 	}
 }
 
