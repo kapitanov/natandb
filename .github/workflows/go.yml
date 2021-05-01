@@ -18,10 +18,10 @@ jobs:
           go-version: 1.16
 
       - name: Build
-        run: >-
-          mkdir -p &&
-          go build -v ./... &&
-          GOOS=linux GOARCH=amd64 go build -o ./artifacts/natandb . &&
+        run: |
+          mkdir -p ./artifacts
+          go build -v ./...
+          GOOS=linux GOARCH=amd64 go build -o ./artifacts/natandb .
           GOOS=windows GOARCH=amd64 go build -o ./artifacts/natandb.exe .
 
       - name: Test
