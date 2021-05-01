@@ -1,8 +1,11 @@
 FROM golang:latest as build
-ADD . /src
 WORKDIR /src
-RUN go get
-RUN CGO_ENABLED=0 go build -o natandb .
+ADD go.mod /src/go.mod
+ADD go.sum /src/go.sum
+RUN go mod download
+
+ADD . /src
+RUN CGO_ENABLED=0 go build -o natandb ./cmd/natandb
 
 FROM alpine:latest
 RUN apk --no-cache add ca-certificates curl

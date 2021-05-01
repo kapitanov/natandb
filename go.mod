@@ -2,27 +2,12 @@ module github.com/kapitanov/natandb
 
 go 1.16
 
-replace github.com/kapitanov/natandb/pkg/log => ./pkg/log
-
-replace github.com/kapitanov/natandb/pkg/proto => ./pkg/proto
-
-replace github.com/kapitanov/natandb/pkg/db => ./pkg/db
-
-replace github.com/kapitanov/natandb/pkg/model => ./pkg/model
-
-replace github.com/kapitanov/natandb/pkg/storage => ./pkg/storage
-
-replace github.com/kapitanov/natandb/pkg/util => ./pkg/util
-
-replace github.com/kapitanov/natandb/pkg/writeahead => ./pkg/writeahead
-
-replace github.com/kapitanov/natandb/cmd => ./cmd
-
-replace github.com/kapitanov/natandb/cmd/diag => ./cmd/diag
-
-replace github.com/kapitanov/natandb/cmd/test => ./cmd/test
-
 require (
-	github.com/kapitanov/natandb/cmd v0.0.0-00010101000000-000000000000
-	github.com/mattn/go-colorable v0.1.2 // indirect
+	github.com/fatih/color v1.10.0 // indirect
+	github.com/golang/protobuf v1.5.2
+	github.com/gosuri/uitable v0.0.4 // indirect
+	github.com/mattn/go-runewidth v0.0.12 // indirect
+	github.com/spf13/cobra v1.1.3 // indirect
+	gonum.org/v1/gonum v0.9.1 // indirect
+	google.golang.org/grpc v1.37.0
 )

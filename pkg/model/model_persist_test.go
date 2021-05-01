@@ -3,10 +3,15 @@ package model
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"testing"
+
+	l "log"
 )
 
 func TestRestoreModelFromEmptyFile(t *testing.T) {
+	l.SetOutput(io.Discard)
+
 	r := bytes.NewBuffer(make([]byte, 0))
 	root, err := ReadSnapshot(r)
 	if err != nil {
@@ -60,6 +65,8 @@ func TestMultiNodeModelStorage(t *testing.T) {
 }
 
 func testModelStorage(t *testing.T, input *Root) {
+	l.SetOutput(io.Discard)
+
 	w := bytes.NewBuffer(make([]byte, 0))
 	err := input.WriteSnapshot(w)
 	if err != nil {

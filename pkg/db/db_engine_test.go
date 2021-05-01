@@ -1,9 +1,10 @@
 package db_test
 
 import (
-	"bytes"
 	"fmt"
+	"github.com/kapitanov/natandb/pkg/storage"
 	"io"
+	l "log"
 	"sort"
 	"strings"
 	"testing"
@@ -29,7 +30,6 @@ func TestGetNoSuchKey(t *testing.T) {
 func TestRemoveValueNoSuchKey(t *testing.T) {
 	engine := createEngine(t)
 	node, err := engine.RemoveValue(key, db.Value("value"))
-	t.Logf("RemoveValue(\"%s\", %s) -> %s, %s\n", key, db.Value("value"), node, err)
 	if err != db.ErrNoSuchKey {
 		t.Errorf("ERROR: expected %s but got %s", db.ErrNoSuchKey, err)
 		return
@@ -44,7 +44,6 @@ func TestRemoveKeyNoSuchKey(t *testing.T) {
 	engine := createEngine(t)
 
 	err := engine.RemoveKey(key)
-	t.Logf("RemoveKey(\"%s\") -> %s\n", key, err)
 	if err != db.ErrNoSuchKey {
 		t.Errorf("ERROR: expected %s but got %s", db.ErrNoSuchKey, err)
 	}
@@ -59,7 +58,6 @@ func TestSetNewKey(t *testing.T) {
 	engine := createEngine(t)
 
 	node, err := engine.Set(key, values)
-	t.Logf("Set(\"%s\", %s) -> %s, %s\n", key, values, node, err)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
@@ -73,7 +71,6 @@ func TestSetNewKeyWithEmptyValue(t *testing.T) {
 	values := []db.Value{}
 	engine := createEngine(t)
 	node, err := engine.Set(key, values)
-	t.Logf("Set(\"%s\", %s) -> %s, %s\n", key, values, node, err)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
@@ -88,7 +85,6 @@ func TestSetExistingKey(t *testing.T) {
 
 	values := []db.Value{db.Value("old value")}
 	node, err := engine.Set(key, values)
-	t.Logf("Set(\"%s\", %s) -> %s, %s\n", key, values, node, err)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
@@ -96,7 +92,6 @@ func TestSetExistingKey(t *testing.T) {
 
 	values = []db.Value{db.Value("value")}
 	node, err = engine.Set(key, values)
-	t.Logf("Set(\"%s\", %s) -> %s, %s\n", key, values, node, err)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
@@ -113,7 +108,6 @@ func TestAddValue(t *testing.T) {
 
 	// Add value1 once
 	node, err := engine.AddValue(key, value1)
-	t.Logf("AddValue(\"%s\", %s) -> %s, %s\n", key, value1, node, err)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
@@ -124,7 +118,6 @@ func TestAddValue(t *testing.T) {
 
 	// Add value1 twice
 	node, err = engine.AddValue(key, value1)
-	t.Logf("AddValue(\"%s\", %s) -> %s, %s\n", key, value1, node, err)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
@@ -135,7 +128,6 @@ func TestAddValue(t *testing.T) {
 
 	// Add value2 once
 	node, err = engine.AddValue(key, value2)
-	t.Logf("AddValue(\"%s\", %s) -> %s, %s\n", key, value2, node, err)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
@@ -152,7 +144,6 @@ func TestRemoveValue(t *testing.T) {
 
 	values := []db.Value{value1, value1, value2}
 	node, err := engine.Set(key, values)
-	t.Logf("Set(\"%s\", %s) -> %s, %s\n", key, values, node, err)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
@@ -163,7 +154,6 @@ func TestRemoveValue(t *testing.T) {
 
 	// Remove value1 once
 	node, err = engine.RemoveValue(key, value1)
-	t.Logf("RemoveValue(\"%s\", %s) -> %s, %s\n", key, value1, node, err)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
@@ -174,7 +164,6 @@ func TestRemoveValue(t *testing.T) {
 
 	// Remove value1 twice
 	node, err = engine.RemoveValue(key, value1)
-	t.Logf("RemoveValue(\"%s\", %s) -> %s, %s\n", key, value1, node, err)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
@@ -184,8 +173,7 @@ func TestRemoveValue(t *testing.T) {
 	checkGetNode(t, engine, node)
 
 	// Remove value1 once more
-	n, err := engine.RemoveValue(key, value1)
-	t.Logf("RemoveValue(\"%s\", %s) -> %s, %s\n", key, value1, n, err)
+	_, err = engine.RemoveValue(key, value1)
 	if err != db.ErrNoSuchValue {
 		t.Errorf("ERROR: expected %s but got %s", db.ErrNoSuchValue, err)
 		return
@@ -196,7 +184,6 @@ func TestRemoveValue(t *testing.T) {
 
 	// Remove value2 once
 	node, err = engine.RemoveValue(key, value2)
-	t.Logf("RemoveValue(\"%s\", %s) -> %s, %s\n", key, value2, node, err)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
@@ -218,7 +205,6 @@ func TestAddUniqueValue(t *testing.T) {
 
 	// Add value1 once
 	node, err := engine.AddUniqueValue(key, value1)
-	t.Logf("AddUniqueValue(\"%s\", %s) -> %s, %s\n", key, value1, node, err)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
@@ -229,7 +215,6 @@ func TestAddUniqueValue(t *testing.T) {
 
 	// Add value1 twice
 	_, err = engine.AddUniqueValue(key, value1)
-	t.Logf("AddUniqueValue(\"%s\", %s) -> %s, %s\n", key, value1, node, err)
 	if err != db.ErrDuplicateValue {
 		t.Errorf("ERROR: expected %s but got %s", db.ErrDuplicateValue, err)
 		return
@@ -239,7 +224,6 @@ func TestAddUniqueValue(t *testing.T) {
 
 	// Add value2 once
 	node, err = engine.AddUniqueValue(key, value2)
-	t.Logf("AddUniqueValue(\"%s\", %s) -> %s, %s\n", key, value2, node, err)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
@@ -255,7 +239,6 @@ func TestRemoveAllValues(t *testing.T) {
 
 	values := []db.Value{value1, value1, value2}
 	node, err := engine.Set(key, values)
-	t.Logf("Set(\"%s\", %s) -> %s, %s\n", key, values, node, err)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
@@ -266,7 +249,6 @@ func TestRemoveAllValues(t *testing.T) {
 
 	// Remove value1 once
 	node, err = engine.RemoveAllValues(key, value1)
-	t.Logf("RemoveAllValues(\"%s\", %s) -> %s, %s\n", key, value1, node, err)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
@@ -276,8 +258,7 @@ func TestRemoveAllValues(t *testing.T) {
 	checkGetNode(t, engine, node)
 
 	// Remove value1 twice
-	n, err := engine.RemoveAllValues(key, value1)
-	t.Logf("RemoveAllValues(\"%s\", %s) -> %s, %s\n", key, value1, n, err)
+	_, err = engine.RemoveAllValues(key, value1)
 	if err != db.ErrNoSuchValue {
 		t.Errorf("ERROR: expected %s but got %s", db.ErrNoSuchValue, err)
 		return
@@ -304,7 +285,6 @@ func TestRemoveKeyExistingKey(t *testing.T) {
 
 	values := []db.Value{value1, value1, value2}
 	node, err := engine.Set(key, values)
-	t.Logf("Set(\"%s\", %s) -> %s, %s\n", key, values, node, err)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
@@ -315,7 +295,6 @@ func TestRemoveKeyExistingKey(t *testing.T) {
 
 	// Remove key
 	err = engine.RemoveKey(key)
-	t.Logf("RemoveKey(\"%s\") -> %s\n", key, err)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
@@ -336,7 +315,6 @@ func TestListEmpty(t *testing.T) {
 	engine := createEngine(t)
 
 	list, err := engine.List("", 0, 100, 0)
-	t.Logf("List(\"%s\", %d, %d, %d) -> %s, %s\n", "", 0, 100, 0, list, err)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
@@ -364,9 +342,7 @@ func TestListNonEmpty(t *testing.T) {
 	nodes := make([]*db.Node, count)
 	for i := 0; i < count; i++ {
 		key := db.Key(fmt.Sprintf("keys/key_%02d", i))
-		values := []db.Value{value}
 		node, err := engine.Set(key, []db.Value{value})
-		t.Logf("Set(\"%s\", %s) -> %s, %s\n", key, values, node, err)
 		if err != nil {
 			t.Errorf("ERROR: expected no error but got %s", err)
 			return
@@ -375,10 +351,8 @@ func TestListNonEmpty(t *testing.T) {
 		nodes[i] = node
 	}
 	version := engine.GetVersion()
-	t.Logf("GetVersion() -> %d\n", version)
 
 	list, err := engine.List("", 0, uint(count)+1, 0)
-	t.Logf("List(\"%s\", %d, %d, %d) -> %s, %s\n", "", 0, uint(count)+1, 0, list, err)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
@@ -411,14 +385,12 @@ func TestListPaged(t *testing.T) {
 	}
 
 	version := engine.GetVersion()
-	t.Logf("GetVersion() -> %d\n", version)
 
 	// --------------------------------------------
 	// Page 1 (0.. max-1)
 	// --------------------------------------------
 	max := 4
 	list, err := engine.List("", 0, uint(max), 0)
-	t.Logf("List(\"%s\", %d, %d, %d) -> %s, %s\n", "", 0, uint(max), 0, list, err)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
@@ -437,7 +409,6 @@ func TestListPaged(t *testing.T) {
 	// Page 2 (max..2*max-1)
 	// --------------------------------------------
 	list, err = engine.List("", uint(max), uint(max), 0)
-	t.Logf("List(\"%s\", %d, %d, %d) -> %s, %s\n", "", uint(max), uint(max), 0, list, err)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
@@ -459,7 +430,6 @@ func TestListFiltered(t *testing.T) {
 		key := db.Key(fmt.Sprintf("keys/key_%02d", i))
 		values := []db.Value{value}
 		node, err := engine.Set(key, values)
-		t.Logf("Set(\"%s\", %s) -> %s, %s\n", key, values, node, err)
 		if err != nil {
 			t.Errorf("ERROR: expected no error but got %s", err)
 			return
@@ -470,8 +440,7 @@ func TestListFiltered(t *testing.T) {
 	for i := 0; i < count; i++ {
 		key := db.Key(fmt.Sprintf("non-keys/key_%02d", i))
 		values := []db.Value{value}
-		n, err := engine.Set(key, values)
-		t.Logf("Set(\"%s\", %s) -> %s, %s\n", key, values, n, err)
+		_, err := engine.Set(key, values)
 		if err != nil {
 			t.Errorf("ERROR: expected no error but got %s", err)
 			return
@@ -479,11 +448,9 @@ func TestListFiltered(t *testing.T) {
 	}
 
 	version := engine.GetVersion()
-	t.Logf("GetVersion() -> %d\n", version)
 
 	max := 4
 	list, err := engine.List("keys/", 0, uint(max), 0)
-	t.Logf("List(\"%s\", %d, %d, %d) -> %s, %s\n", "keys/", 0, uint(max), 0, list, err)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
@@ -504,38 +471,32 @@ func TestListFiltered(t *testing.T) {
 
 func TestShutdownAndRestore(t *testing.T) {
 	walFile := &inMemoryWriteAheadLog{0}
-	snapshotFile := &inMemorySnapshotFile{make([]byte, 0)}
+	storageDriver := NewInMemoryStorageDriver(t)
 
-	engine, err := db.NewEngine(walFile, snapshotFile)
-	t.Logf("NewEngine() -> _, %s\n", err)
+	engine, err := db.NewEngine(walFile, storageDriver)
 	if err != nil {
 		t.Fatalf("NewEngine failed: %s", err)
 	}
 
 	values := []db.Value{db.Value("value")}
 	node, err := engine.Set(key, values)
-	t.Logf("Set(\"%s\", %s) -> %s, %s\n", key, values, node, err)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
 	}
 
 	err = engine.Close()
-	t.Logf("Close() -> %s\n", err)
-
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
 	}
 
-	engine, err = db.NewEngine(walFile, snapshotFile)
-	t.Logf("NewEngine() -> _, %s\n", err)
+	engine, err = db.NewEngine(walFile, storageDriver)
 	if err != nil {
 		t.Fatalf("NewEngine failed: %s", err)
 	}
 
 	version := engine.GetVersion()
-	t.Logf("GetVersion() -> %d\n", version)
 	if version != node.Version {
 		t.Errorf("ERROR: expected db.version=%d but got %d", node.Version, version)
 		return
@@ -550,11 +511,12 @@ func TestShutdownAndRestore(t *testing.T) {
 // --------------------------------------------------------------------------------------------------------------------
 
 func createEngine(t *testing.T) db.Engine {
-	walFile := &inMemoryWriteAheadLog{0}
-	snapshotFile := &inMemorySnapshotFile{make([]byte, 0)}
+	l.SetOutput(io.Discard)
 
-	engine, err := db.NewEngine(walFile, snapshotFile)
-	t.Logf("NewEngine() -> _, %s\n", err)
+	walFile := &inMemoryWriteAheadLog{0}
+	storageDriver := NewInMemoryStorageDriver(t)
+
+	engine, err := db.NewEngine(walFile, storageDriver)
 	if err != nil {
 		t.Fatalf("NewEngine failed: %s", err)
 	}
@@ -593,43 +555,127 @@ func (t *inMemoryWriteAheadLog) Close() error {
 	return nil
 }
 
-// Test storage.SnapshotFile impl ---------------------------------------------
+// Test storage.Driver impl ---------------------------------------------
 
-type inMemorySnapshotFile struct {
-	buffer []byte
+type inMemoryFile struct {
+	t           *testing.T
+	buffer      []byte
+	readOffset  int
+	writeOffset int
+	capacity    int
 }
 
-func (t *inMemorySnapshotFile) Read() (io.ReadCloser, error) {
-	return &inMemorySnapshotFileReader{bytes.NewBuffer(t.buffer)}, nil
+func NewInMemoryFile(t *testing.T) *inMemoryFile{
+	return &inMemoryFile{
+		t:      t,
+		buffer: make([]byte, 0),
+	}
 }
 
-func (t *inMemorySnapshotFile) Write() (io.WriteCloser, error) {
-	return &inMemorySnapshotFileWriter{t, bytes.NewBuffer(make([]byte, 0))}, nil
+
+func NewInMemoryStorageDriver(t *testing.T) storage.Driver {
+	return &inMemoryFileSystem{
+		walFile:      NewInMemoryFile(t),
+		snapshotFile:      NewInMemoryFile(t),
+	}
 }
 
-type inMemorySnapshotFileReader struct {
-	buffer *bytes.Buffer
+type inMemoryFileSystem struct {
+	walFile *inMemoryFile
+	snapshotFile *inMemoryFile
 }
 
-func (s *inMemorySnapshotFileReader) Read(p []byte) (int, error) {
-	return s.buffer.Read(p)
+func (s *inMemoryFileSystem) ReadWalFile() (io.ReadSeeker, error) {
+	s.walFile.readOffset = 0
+	return &inMemoryFileSystemReaderWriter{s.walFile}, nil
 }
 
-func (s *inMemorySnapshotFileReader) Close() error {
-	return nil
+func (s *inMemoryFileSystem) WriteWalFile() (io.WriteCloser, error) {
+	return &inMemoryFileSystemReaderWriter{s.walFile}, nil
 }
 
-type inMemorySnapshotFileWriter struct {
-	file   *inMemorySnapshotFile
-	buffer *bytes.Buffer
+func (s *inMemoryFileSystem) ReadSnapshotFile() (io.ReadCloser, error) {
+	s.snapshotFile.readOffset = 0
+	return &inMemoryFileSystemReaderWriter{s.snapshotFile}, nil
 }
 
-func (w *inMemorySnapshotFileWriter) Write(p []byte) (int, error) {
-	return w.buffer.Write(p)
+func (s *inMemoryFileSystem) WriteSnapshotFile() (io.WriteCloser, error) {
+	return &inMemoryFileSystemReaderWriter{s.snapshotFile}, nil
 }
 
-func (w *inMemorySnapshotFileWriter) Close() error {
-	w.file.buffer = w.buffer.Bytes()
+type inMemoryFileSystemReaderWriter struct {
+	stream *inMemoryFile
+}
+
+func (r *inMemoryFileSystemReaderWriter) Read(p []byte) (int, error) {
+	s := r.stream
+	n := len(p)
+
+	if n > s.capacity-s.readOffset {
+		n = s.capacity - s.readOffset
+	}
+
+	if n == 0 {
+		return 0, io.EOF
+	}
+
+	for i := 0; i < n; i++ {
+		if i+s.readOffset >= len(s.buffer) {
+			s.t.Logf("Bad READ: cap=%d, ro=%d, i=%d, len=%d", s.capacity, s.readOffset, i, len(s.buffer))
+		}
+		if i >= len(p) {
+			s.t.Logf("Bad READ: i=%d, len=%d", i, len(p))
+		}
+		p[i] = s.buffer[i+s.readOffset]
+	}
+
+	s.readOffset += n
+	return n, nil
+}
+
+func (w *inMemoryFileSystemReaderWriter) Write(p []byte) (int, error) {
+	s := w.stream
+	n := len(p)
+	for len(s.buffer) < s.writeOffset+n {
+		newBuffer := make([]byte, len(s.buffer)+1024)
+		for i := 0; i < len(s.buffer); i++ {
+			newBuffer[i] = s.buffer[i]
+		}
+		s.buffer = newBuffer
+	}
+
+	for i := 0; i < n; i++ {
+		s.buffer[i+s.writeOffset] = p[i]
+	}
+
+	s.writeOffset += n
+	if s.capacity < s.writeOffset {
+		s.capacity = s.writeOffset
+	}
+	return n, nil
+}
+
+func (r *inMemoryFileSystemReaderWriter) Seek(offset int64, whence int) (int64, error) {
+	s := r.stream
+	switch whence {
+	case io.SeekCurrent:
+		if s.readOffset+int(offset) < 0 {
+			return int64(s.readOffset), io.EOF
+		}
+		s.readOffset += int(offset)
+		break
+	case io.SeekStart:
+		s.readOffset = int(offset)
+		break
+	case io.SeekEnd:
+		s.readOffset = s.capacity - int(offset)
+		break
+	}
+
+	return int64(s.readOffset), nil
+}
+
+func (r *inMemoryFileSystemReaderWriter) Close() error {
 	return nil
 }
 
@@ -696,7 +742,6 @@ func checkNodeList(t *testing.T, list *db.PagedNodeList, nodes []*db.Node, total
 
 func checkGetNode(t *testing.T, engine db.Engine, node *db.Node) {
 	n, err := engine.Get(node.Key)
-	t.Logf("Get(\"%s\") -> %s, %s\n", node.Key, n, err)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
@@ -707,7 +752,6 @@ func checkGetNode(t *testing.T, engine db.Engine, node *db.Node) {
 
 func checkGetNoNode(t *testing.T, engine db.Engine, key db.Key) {
 	node, err := engine.Get(key)
-	t.Logf("Get(\"%s\") -> %s, %s\n", key, node, err)
 	if err != db.ErrNoSuchKey {
 		t.Errorf("ERROR: expected %s but got %s", db.ErrNoSuchKey, err)
 		return

@@ -13,7 +13,7 @@ const (
 )
 
 func TestEmptyLog(t *testing.T) {
-	log, err := writeahead.NewLog(NewInMemoryWriteAheadLogFile(t), writeahead.NewSerializer())
+	log, err := writeahead.NewLog(NewInMemoryStorageDriver(t), writeahead.NewSerializer())
 	if err != nil {
 		t.Errorf("ERROR: NewLog() failed: %s", err)
 		return
@@ -30,7 +30,7 @@ func TestEmptyLog(t *testing.T) {
 }
 
 func TestReadAfterWriteOne(t *testing.T) {
-	log, err := writeahead.NewLog(NewInMemoryWriteAheadLogFile(t), writeahead.NewSerializer())
+	log, err := writeahead.NewLog(NewInMemoryStorageDriver(t), writeahead.NewSerializer())
 	if err != nil {
 		t.Errorf("ERROR: NewLog() failed: %s", err)
 		return
@@ -69,7 +69,7 @@ func TestReadAfterWriteOne(t *testing.T) {
 }
 
 func TestReadAfterWriteMany(t *testing.T) {
-	log, err := writeahead.NewLog(NewInMemoryWriteAheadLogFile(t), writeahead.NewSerializer())
+	log, err := writeahead.NewLog(NewInMemoryStorageDriver(t), writeahead.NewSerializer())
 	if err != nil {
 		t.Errorf("ERROR: NewLog() failed: %s", err)
 		return
@@ -111,7 +111,7 @@ func TestReadAfterWriteMany(t *testing.T) {
 }
 
 func TestReadChunkForward(t *testing.T) {
-	log, err := writeahead.NewLog(NewInMemoryWriteAheadLogFile(t), writeahead.NewSerializer())
+	log, err := writeahead.NewLog(NewInMemoryStorageDriver(t), writeahead.NewSerializer())
 	if err != nil {
 		t.Errorf("ERROR: NewLog() failed: %s", err)
 		return
@@ -176,7 +176,7 @@ func TestReadChunkForward(t *testing.T) {
 }
 
 func TestReadChunkBackward(t *testing.T) {
-	log, err := writeahead.NewLog(NewInMemoryWriteAheadLogFile(t), writeahead.NewSerializer())
+	log, err := writeahead.NewLog(NewInMemoryStorageDriver(t), writeahead.NewSerializer())
 	if err != nil {
 		t.Errorf("ERROR: NewLog() failed: %s", err)
 		return
@@ -203,7 +203,6 @@ func TestReadChunkBackward(t *testing.T) {
 	chunkSize := 10
 	maxId := ^uint64(0) - 1
 	for totalCount < count {
-		t.Logf("ReadChunkBackward(%d, %d)", maxId, chunkSize)
 		chunk, err := log.ReadChunkBackward(maxId, chunkSize)
 		if err != nil {
 			t.Errorf("ERROR: ReadChunk() failed: %s", err)
@@ -217,7 +216,6 @@ func TestReadChunkBackward(t *testing.T) {
 		newMaxID := maxId
 		for i := 0; i < len(chunk); i++ {
 			expectedID := uint64(WriteCount - totalCount)
-			t.Logf("chunk[%d].ID = %d (expected %d)", i, chunk[i].ID, expectedID)
 			if chunk[i].ID != expectedID {
 				t.Errorf("ERROR: wrong chunk id (at %d): %d != %d", i, chunk[i].ID, totalCount+1)
 				return
@@ -247,7 +245,7 @@ func TestReadChunkBackward(t *testing.T) {
 // Test helpers
 // --------------------------------------------------------------------------------------------------------------------
 
-type inMemoryFileSystem struct {
+type inMemoryFile struct {
 	t           *testing.T
 	buffer      []byte
 	readOffset  int
@@ -255,17 +253,46 @@ type inMemoryFileSystem struct {
 	capacity    int
 }
 
+func NewInMemoryFile(t *testing.T) *inMemoryFile{
+	return &inMemoryFile{
+		t:      t,
+		buffer: make([]byte, 0),
+	}
+}
+
+
+func NewInMemoryStorageDriver(t *testing.T) storage.Driver {
+	return &inMemoryFileSystem{
+		walFile:      NewInMemoryFile(t),
+		snapshotFile:      NewInMemoryFile(t),
+	}
+}
+
+type inMemoryFileSystem struct {
+	walFile *inMemoryFile
+	snapshotFile *inMemoryFile
+}
+
+func (s *inMemoryFileSystem) ReadWalFile() (io.ReadSeeker, error) {
+	s.walFile.readOffset = 0
+	return &inMemoryFileSystemReaderWriter{s.walFile}, nil
+}
+
+func (s *inMemoryFileSystem) WriteWalFile() (io.WriteCloser, error) {
+	return &inMemoryFileSystemReaderWriter{s.walFile}, nil
+}
+
+func (s *inMemoryFileSystem) ReadSnapshotFile() (io.ReadCloser, error) {
+	s.snapshotFile.readOffset = 0
+	return &inMemoryFileSystemReaderWriter{s.snapshotFile}, nil
+}
+
+func (s *inMemoryFileSystem) WriteSnapshotFile() (io.WriteCloser, error) {
+	return &inMemoryFileSystemReaderWriter{s.snapshotFile}, nil
+}
+
 type inMemoryFileSystemReaderWriter struct {
-	stream *inMemoryFileSystem
-}
-
-func (s *inMemoryFileSystem) Read() (io.ReadSeeker, error) {
-	s.readOffset = 0
-	return &inMemoryFileSystemReaderWriter{s}, nil
-}
-
-func (s *inMemoryFileSystem) Write() (io.WriteCloser, error) {
-	return &inMemoryFileSystemReaderWriter{s}, nil
+	stream *inMemoryFile
 }
 
 func (r *inMemoryFileSystemReaderWriter) Read(p []byte) (int, error) {
@@ -290,7 +317,6 @@ func (r *inMemoryFileSystemReaderWriter) Read(p []byte) (int, error) {
 		p[i] = s.buffer[i+s.readOffset]
 	}
 
-	s.t.Logf("Read(%d): %d..%d (%d)", len(p), s.readOffset, s.readOffset+n, n)
 	s.readOffset += n
 	return n, nil
 }
@@ -306,7 +332,6 @@ func (w *inMemoryFileSystemReaderWriter) Write(p []byte) (int, error) {
 		s.buffer = newBuffer
 	}
 
-	from := s.writeOffset
 	for i := 0; i < n; i++ {
 		s.buffer[i+s.writeOffset] = p[i]
 	}
@@ -314,10 +339,7 @@ func (w *inMemoryFileSystemReaderWriter) Write(p []byte) (int, error) {
 	s.writeOffset += n
 
 	if s.capacity < s.writeOffset {
-		s.t.Logf("Write(): %d..%d (capacity %d -> %d)", from, from+n, s.capacity, s.writeOffset)
 		s.capacity = s.writeOffset
-	} else {
-		s.t.Logf("Write(): %d..%d", from, from+n)
 	}
 
 	return n, nil
@@ -325,7 +347,6 @@ func (w *inMemoryFileSystemReaderWriter) Write(p []byte) (int, error) {
 
 func (r *inMemoryFileSystemReaderWriter) Seek(offset int64, whence int) (int64, error) {
 	s := r.stream
-	was := s.readOffset
 	switch whence {
 	case io.SeekCurrent:
 		if s.readOffset+int(offset) < 0 {
@@ -341,17 +362,9 @@ func (r *inMemoryFileSystemReaderWriter) Seek(offset int64, whence int) (int64, 
 		break
 	}
 
-	s.t.Logf("Seek(%d, %d): %d -> %d", offset, whence, was, s.readOffset)
 	return int64(s.readOffset), nil
 }
 
 func (r *inMemoryFileSystemReaderWriter) Close() error {
 	return nil
-}
-
-func NewInMemoryWriteAheadLogFile(t *testing.T) storage.WriteAheadLogFile {
-	return &inMemoryFileSystem{
-		t:      t,
-		buffer: make([]byte, 0),
-	}
 }

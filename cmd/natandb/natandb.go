@@ -6,8 +6,8 @@ import (
 	l "log"
 	"os"
 
-	"github.com/kapitanov/natandb/cmd/diag"
-	"github.com/kapitanov/natandb/cmd/test"
+	"github.com/kapitanov/natandb/cmd/natandb/diag"
+	"github.com/kapitanov/natandb/cmd/natandb/test"
 	pkgLog "github.com/kapitanov/natandb/pkg/log"
 	"github.com/spf13/cobra"
 )
@@ -28,7 +28,7 @@ var rootCmd = &cobra.Command{
 var quiet bool
 
 // Main is an entry point for CLI application
-func Main(args []string) {
+func main() {
 	err := rootCmd.Execute()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
