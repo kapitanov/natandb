@@ -5,8 +5,8 @@
 [x] Merge storage.WriteAheadLogFile and storage.SnapshotFile into storage.Driver
 [x] Command-line runner
 [x] Command-line client
-[ ] Background model snapshot write
-[ ] Background WAL compression
+[x] Background model snapshot write
+[x] Background WAL compression
 [x] WAL error correction
 [x] WAL version check
 [x] Proper logging

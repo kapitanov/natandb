@@ -833,7 +833,7 @@ func TestShutdownAndRestore(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	engine, err := db.NewEngine(driver)
+	engine, err := db.NewEngine(db.StorageDriverOption(driver))
 	if err != nil {
 		t.Fatalf("NewEngine failed: %s", err)
 	}
@@ -866,7 +866,7 @@ func TestShutdownAndRestore(t *testing.T) {
 		return
 	}
 
-	engine, err = db.NewEngine(driver)
+	engine, err = db.NewEngine(db.StorageDriverOption(driver))
 	if err != nil {
 		t.Fatalf("NewEngine failed: %s", err)
 	}
@@ -884,6 +884,127 @@ func TestShutdownAndRestore(t *testing.T) {
 
 	checkNode(t, node, key, values, 1)
 	checkGetNode(t, engine, node)
+}
+
+// --------------------------------------------------------------------------------------------------------------------
+// Vacuum tests
+// --------------------------------------------------------------------------------------------------------------------
+
+func TestVacuum(t *testing.T) {
+	log.SetOutput(io.Discard)
+	l.SetMinLevel(l.Verbose)
+
+	// Prepare engine state
+	dir, err := os.MkdirTemp(os.TempDir(), "*")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	driver, err := storage.NewDriver(storage.DirectoryOption(dir))
+	if err != nil {
+		t.Errorf("ERROR: NewDriver() failed: %s", err)
+		t.Fatal(err)
+	}
+
+	engine, err := db.NewEngine(db.StorageDriverOption(driver))
+	if err != nil {
+		t.Fatalf("NewEngine failed: %s", err)
+	}
+
+	values := []db.Value{db.Value("value")}
+	var node *db.Node
+	for i := 0; i < 10; i++ {
+		err = engine.Tx(func(tx db.TX) error {
+			var e error
+			node, e = tx.Set(key, values)
+			return e
+		})
+		if err != nil {
+			t.Errorf("ERROR: expected no error but got %s", err)
+			return
+		}
+	}
+
+	var oldVersion uint64
+	err = engine.Tx(func(tx db.TX) error {
+		oldVersion = tx.GetVersion()
+		return nil
+	})
+	if err != nil {
+		t.Errorf("ERROR: expected no error but got %s", err)
+		return
+	}
+
+	// Run Vacuum routine
+	err = engine.Vacuum()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Check new engine state
+	err = engine.Tx(func(tx db.TX) error {
+		version := tx.GetVersion()
+		if version <= oldVersion {
+			t.Errorf("ERROR: expected db.version>%d but got %d", oldVersion, version)
+		}
+
+		list, err := tx.List("", 0, 1, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if list.TotalCount != 1 {
+			t.Errorf("ERROR: expected db.list().total_count=%d but got %d", 1, list.TotalCount)
+		}
+
+		n := list.Nodes[0]
+		if n.Key != node.Key {
+			t.Errorf("ERROR: expected db.list().[0].key=\"%s\" but got \"%s\"", node.Key, n.Key)
+		}
+
+		if len(n.Values) != len(node.Values) {
+			t.Errorf("ERROR: expected len(db.list().[0].values)=%d but got %d", len(node.Values), len(n.Values))
+		}
+		for i := range n.Values {
+			if !n.Values[i].Equal(node.Values[i]) {
+				t.Errorf("ERROR: expected db.list().[0].values[%d]=\"%s\" but got \"%s\"", i, node.Values[i], n.Values[i])
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wal, err := driver.WALFile().Read()
+	defer func() {
+		_ = wal.Close()
+	}()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	count := 0
+	for {
+		_, err = wal.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		count++
+	}
+
+	// We expected 3 records in WAL after vacuum:
+	// - RMKEY
+	// - ADDVAL
+	// - COMMIT
+	if count > 3 {
+		t.Errorf("ERROR: wal file contains too many items after vacuum (%d)", count)
+	}
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -905,7 +1026,7 @@ func createEngine(t *testing.T) db.Engine {
 		t.Fatal(err)
 	}
 
-	engine, err := db.NewEngine(driver)
+	engine, err := db.NewEngine(db.StorageDriverOption(driver))
 	if err != nil {
 		t.Fatalf("NewEngine failed: %s", err)
 	}

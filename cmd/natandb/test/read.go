@@ -34,8 +34,8 @@ func (t *readPerfTest) Init(ctx context.Context, client proto.Client, n int) err
 		values[i] = []byte(randomString(32))
 	}
 
-	request := &proto.SetValueRequest{Key: t.key, Values: values}
-	_, err := client.SetValue(ctx, request)
+	request := &proto.SetRequest{Key: t.key, Values: values}
+	_, err := client.Set(ctx, request)
 	if err != nil {
 		return err
 	}
@@ -46,7 +46,7 @@ func (t *readPerfTest) Init(ctx context.Context, client proto.Client, n int) err
 func (t *readPerfTest) Run(ctx context.Context, client proto.Client, low, high int) error {
 	for i := low; i < high; i++ {
 		request := &proto.GetRequest{Key: t.key}
-		_, err := client.GetValue(ctx, request)
+		_, err := client.Get(ctx, request)
 		if err != nil {
 			return err
 		}
@@ -56,8 +56,8 @@ func (t *readPerfTest) Run(ctx context.Context, client proto.Client, low, high i
 }
 
 func (t *readPerfTest) Cleanup(ctx context.Context, client proto.Client, n int) error {
-	request := &proto.RemoveKeyRequest{Key: t.key}
-	_, err := client.RemoveKey(ctx, request)
+	request := &proto.DeleteRequest{Key: t.key}
+	_, err := client.Delete(ctx, request)
 	if err != nil {
 		return err
 	}

@@ -45,56 +45,44 @@ func (c *clientImpl) List(ctx context.Context, in *ListRequest, opts ...grpc.Cal
 	return c.client.List(ctx, in, opts...)
 }
 
-// GetVersion returns current data version
-func (c *clientImpl) GetVersion(ctx context.Context, in *None, opts ...grpc.CallOption) (*DBVersion, error) {
-	return c.client.GetVersion(ctx, in, opts...)
+// Version returns current data version
+func (c *clientImpl) Version(ctx context.Context, in *None, opts ...grpc.CallOption) (*DBVersion, error) {
+	return c.client.Version(ctx, in, opts...)
 }
 
-// GetValue gets a node value by its key
+// Get gets a node value by its key
 // If specified node doesn't exist, a ErrNoSuchKey error is returned
-func (c *clientImpl) GetValue(ctx context.Context, in *GetRequest, opts ...grpc.CallOption) (*Node, error) {
-	return c.client.GetValue(ctx, in, opts...)
+func (c *clientImpl) Get(ctx context.Context, in *GetRequest, opts ...grpc.CallOption) (*Node, error) {
+	return c.client.Get(ctx, in, opts...)
 }
 
-// SetValue sets a node value, rewriting its value if node already exists
+// Set sets a node value, rewriting its value if node already exists
 // If specified node doesn't exists, it will be created
-func (c *clientImpl) SetValue(ctx context.Context, in *SetValueRequest, opts ...grpc.CallOption) (*Node, error) {
-	return c.client.SetValue(ctx, in, opts...)
+func (c *clientImpl) Set(ctx context.Context, in *SetRequest, opts ...grpc.CallOption) (*Node, error) {
+	return c.client.Set(ctx, in, opts...)
 }
 
-// AddValue defines an "append value" operation
+// Add defines an "append value" operation
 // If specified node doesn't exists, it will be created
 // A specified value will be added to node even if it already exists
-func (c *clientImpl) AddValue(ctx context.Context, in *AddValueRequest, opts ...grpc.CallOption) (*Node, error) {
-	return c.client.AddValue(ctx, in, opts...)
-}
-
-// AddUniqueValue defines an "append value" operation
-// If specified node doesn't exists, it will be created
 // If node already contains the same value and "unique" parameter is set to "true", a ErrDuplicateValue error is returned
-func (c *clientImpl) AddUniqueValue(ctx context.Context, in *AddUniqueValueRequest, opts ...grpc.CallOption) (*Node, error) {
-	return c.client.AddUniqueValue(ctx, in, opts...)
+func (c *clientImpl) Add(ctx context.Context, in *AddRequest, opts ...grpc.CallOption) (*Node, error) {
+	return c.client.Add(ctx, in, opts...)
 }
 
-// RemoveValue defines an "remove value" operation
+// Remove defines an "remove value" operation
 // If specified node doesn't exist, a ErrNoSuchKey error is returned
 // If specified value doesn't exist within a node, a ErrNoSuchValue error is returned
-func (c *clientImpl) RemoveValue(ctx context.Context, in *RemoveValueRequest, opts ...grpc.CallOption) (*Node, error) {
-	return c.client.RemoveValue(ctx, in, opts...)
-}
-
-// RemoveAllValues defines an "remove value" operation
-// If specified node doesn't exist, a ErrNoSuchKey error is returned
 // If node contains specified value multiple times, all values are removed
-// If specified value doesn't exist within a node, a ErrNoSuchValue error is returned
-func (c *clientImpl) RemoveAllValues(ctx context.Context, in *RemoveAllValuesRequest, opts ...grpc.CallOption) (*Node, error) {
-	return c.client.RemoveAllValues(ctx, in, opts...)
+// (unless a "all" parameter is set to "false"
+func (c *clientImpl) Remove(ctx context.Context, in *RemoveRequest, opts ...grpc.CallOption) (*Node, error) {
+	return c.client.Remove(ctx, in, opts...)
 }
 
-// RemoveKey removes a key completely
+// Delete removes a key completely
 // If specified node doesn't exist, a ErrNoSuchKey error is returned
-func (c *clientImpl) RemoveKey(ctx context.Context, in *RemoveKeyRequest, opts ...grpc.CallOption) (*None, error) {
-	return c.client.RemoveKey(ctx, in, opts...)
+func (c *clientImpl) Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*None, error) {
+	return c.client.Delete(ctx, in, opts...)
 }
 
 // Close shuts down client connection

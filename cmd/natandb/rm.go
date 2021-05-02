@@ -20,13 +20,13 @@ func init() {
 	rootCmd.AddCommand(cmd)
 
 	clientCommand(cmd, func(args []string, client proto.Client, ctx context.Context) error {
-		request := proto.RemoveKeyRequest{
+		request := proto.DeleteRequest{
 			Key: args[0],
 		}
 
-		_, err := client.RemoveKey(ctx, &request)
+		_, err := client.Delete(ctx, &request)
 		if err != nil {
-			log.Printf("unable to execute \"RemoveKey\": %s", err)
+			log.Printf("unable to execute \"Delete\": %s", err)
 			return err
 		}
 

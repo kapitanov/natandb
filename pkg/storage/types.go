@@ -37,6 +37,16 @@ type WALFile interface {
 
 	// Write opens WAL file for writing
 	Write() (WALWriter, error)
+
+	// BeginVacuum starts vacuum routine
+	// WAL readers and writers must be closed before calling BeginVacuum()
+	BeginVacuum(writer WALWriter) (WALVacuum, error)
+}
+
+// WALVacuum represents a pending WAL vacuum operation
+type WALVacuum interface {
+	// End opens WAL file for writing without resetting ID and TxID counters
+	End() (WALWriter, error)
 }
 
 // SnapshotFile provides access to snapshot file

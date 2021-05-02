@@ -1,123 +1,105 @@
 syntax = "proto3";
 
-option go_package = "proto";
+option go_package = "github.com/kapitanov/natandb/pkg/proto";
 
 // Service is NatanDB service entrypoint
 service Service {
-    // List returns paged list of DB keys (with values)
-	// Optionally list might be filtered by key prefix
-    rpc List(ListRequest) returns (PagedNodeList) { }
+  // List returns paged list of DB keys (with values)
+  // Optionally list might be filtered by key prefix
+  rpc List(ListRequest) returns (PagedNodeList) {}
 
-    // GetVersion returns current data version
-	rpc GetVersion(None) returns (DBVersion) { }
+  // Version returns current data version
+  rpc Version(None) returns (DBVersion) {}
 
-	// GetValue gets a node value by its key
-	// If specified node doesn't exist, a ErrNoSuchKey error is returned
-	rpc GetValue(GetRequest) returns (Node) { }
+  // Get gets a node value by its key
+  // If specified node doesn't exist, a ErrNoSuchKey error is returned
+  rpc Get(GetRequest) returns (Node) {}
 
-	// SetValue sets a node value, rewritting its value if node already exists
-	// If specified node doesn't exists, it will be created
-	rpc SetValue(SetValueRequest) returns (Node) { }
+  // Set sets a node value, rewritting its value if node already exists
+  // If specified node doesn't exists, it will be created
+  rpc Set(SetRequest) returns (Node) {}
 
-	// AddValue defines an "append value" operation
-	// If specified node doesn't exists, it will be created
-	// A specified value will be added to node even if it already exists
-	rpc AddValue(AddValueRequest) returns (Node) { }
+  // Add defines an "append value" operation
+  // If specified node doesn't exists, it will be created
+  // A specified value will be added to node even if it already exists
+  // If node already contains the same value and "unique" parameter is set to "true", a ErrDuplicateValue error is returned
+  rpc Add(AddRequest) returns (Node) {}
 
-	// AddUniqueValue defines an "append value" operation
-	// If specified node doesn't exists, it will be created
-	// If node already contains the same value and "unique" parameter is set to "true", a ErrDuplicateValue error is returned
-	rpc AddUniqueValue(AddUniqueValueRequest) returns (Node) { }
+  // Remove defines an "remove value" operation
+  // If specified node doesn't exist, a ErrNoSuchKey error is returned
+  // If specified value doesn't exist within a node, a ErrNoSuchValue error is returned
+  // If node contains specified value multiple times, all values are removed
+  // (unless a "all" parameter is set to "false"
+  rpc Remove(RemoveRequest) returns (Node) {}
 
-	// RemoveValue defines an "remove value" operation
-	// If specified node doesn't exist, a ErrNoSuchKey error is returned
-	// If specified value doesn't exist within a node, a ErrNoSuchValue error is returned
-	rpc RemoveValue(RemoveValueRequest) returns (Node) { }
-
-	// RemoveAllValues defines an "remove value" operation
-	// If specified node doesn't exist, a ErrNoSuchKey error is returned
-	// If node contains specified value multiple times, all values are removed
-	// If specified value doesn't exist within a node, a ErrNoSuchValue error is returned
-	rpc RemoveAllValues(RemoveAllValuesRequest) returns (Node) { }
-
-	// RemoveKey removes a key completely
-	// If specified node doesn't exist, a ErrNoSuchKey error is returned
-	rpc RemoveKey(RemoveKeyRequest) returns (None) { }
+  // Delete removes a key completely
+  // If specified node doesn't exist, a ErrNoSuchKey error is returned
+  rpc Delete(DeleteRequest) returns (None) {}
 }
 
 message Node {
-	// Node key
-    string key = 1;
-    // Node version
-    uint64 version  = 2;
-    // Node value
-    repeated bytes values = 3;
+  // Node key
+  string key = 1;
+  // Node version
+  uint64 version = 2;
+  // Node value
+  repeated bytes values = 3;
 }
 
 message ListRequest {
-    string prefix = 1;
-    uint32 skip = 2;
-    uint32 limit = 3;
-    uint64 version = 4;
+  string prefix = 1;
+  uint32 skip = 2;
+  uint32 limit = 3;
+  uint64 version = 4;
 }
 
 message PagedNodeList {
-	// Current DB version
-	uint64 version = 1;
-	// Total count of nodes
-    uint32 total_count = 2;
-    // Array of nodes
-    repeated Node nodes=3;
+  // Current DB version
+  uint64 version = 1;
+  // Total count of nodes
+  uint32 total_count = 2;
+  // Array of nodes
+  repeated Node nodes = 3;
 }
 
 message DBVersion {
-	// Current DB version
-    uint64 version = 1;
+  // Current DB version
+  uint64 version = 1;
 }
 
 message GetRequest {
-    // Node key
-    string key = 1;
+  // Node key
+  string key = 1;
 }
 
-message SetValueRequest {
-    // Node key
-    string key = 1;
-    // Node value
-    repeated bytes values = 2;
+message SetRequest {
+  // Node key
+  string key = 1;
+  // Node value
+  repeated bytes values = 2;
 }
 
-message AddValueRequest {
-    // Node key
-    string key = 1;
-    // Node value
-    bytes value = 2;
+message AddRequest {
+  // Node key
+  string key = 1;
+  // Node value
+  bytes value = 2;
+  // Set to true to add value only if it doesn't exist
+  bool unique = 3;
 }
 
-message AddUniqueValueRequest {
-    // Node key
-    string key = 1;
-    // Node value
-    bytes value = 2;
+message RemoveRequest {
+  // Node key
+  string key = 1;
+  // Node value
+  bytes value = 2;
+  // Set to true to remove all value's occurrences
+  bool all = 3;
 }
 
-message RemoveValueRequest {
-    // Node key
-    string key = 1;
-    // Node value
-    bytes value = 2;
+message DeleteRequest {
+  // Node key
+  string key = 1;
 }
 
-message RemoveAllValuesRequest {
-    // Node key
-    string key = 1;
-    // Node value
-    bytes value = 2;
-}
-
-message RemoveKeyRequest {
-    // Node key
-    string key = 1;
-}
-
-message None { }
+message None {}

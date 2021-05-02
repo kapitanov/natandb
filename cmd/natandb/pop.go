@@ -22,24 +22,14 @@ func init() {
 	clientNodeCommand(cmd, func(args []string, client proto.Client, ctx context.Context) (*proto.Node, error) {
 		var node *proto.Node
 		var err error
-		if *all {
-			request := proto.RemoveAllValuesRequest{
-				Key:   args[0],
-				Value: []byte(args[1]),
-			}
-			node, err = client.RemoveAllValues(ctx, &request)
-			if err != nil {
-				log.Printf("unable to execute \"RemoveAllValues\": %s", err)
-			}
-		} else {
-			request := proto.RemoveValueRequest{
-				Key:   args[0],
-				Value: []byte(args[1]),
-			}
-			node, err = client.RemoveValue(ctx, &request)
-			if err != nil {
-				log.Printf("unable to execute \"RemoveValue\": %s", err)
-			}
+		request := proto.RemoveRequest{
+			Key:   args[0],
+			Value: []byte(args[1]),
+			All:   *all,
+		}
+		node, err = client.Remove(ctx, &request)
+		if err != nil {
+			log.Printf("unable to execute \"Remove\": %s", err)
 		}
 
 		return node, err

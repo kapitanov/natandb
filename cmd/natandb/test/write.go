@@ -46,8 +46,8 @@ func (t *writePerfTest) Run(ctx context.Context, client proto.Client, low, high 
 		key := t.keys[i%len(t.keys)]
 		value := t.values[i%len(t.values)]
 
-		request := &proto.AddUniqueValueRequest{Key: key, Value: value}
-		_, err := client.AddUniqueValue(ctx, request)
+		request := &proto.AddRequest{Key: key, Value: value, Unique: true}
+		_, err := client.Add(ctx, request)
 		if err != nil {
 			return err
 		}
@@ -58,8 +58,8 @@ func (t *writePerfTest) Run(ctx context.Context, client proto.Client, low, high 
 
 func (t *writePerfTest) Cleanup(ctx context.Context, client proto.Client, n int) error {
 	for _, key := range t.keys {
-		request := &proto.RemoveKeyRequest{Key: key}
-		_, err := client.RemoveKey(ctx, request)
+		request := &proto.DeleteRequest{Key: key}
+		_, err := client.Delete(ctx, request)
 		if err != nil {
 			return err
 		}

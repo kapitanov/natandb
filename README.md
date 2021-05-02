@@ -2,9 +2,12 @@
 
 A key-value (or more exactly key-array) standalone database written just for fun.
 
-## Current state
+## Features
 
-Totally work-in-progress (doesn't event compile yet).
+* Supports `List`, `Get`, `Set`, `Add`/`Add(unique)`, `Remove`/`Remove(all)`, `RemoveAll`, `Delete` commands.
+* Built-in [GRPC interface](./pkg/proto/natan.proto)
+* ACID transactions (which do not work over GRPC so far)
+* Write-ahead log compression
 
 ## Performance
 
@@ -12,16 +15,16 @@ Totally work-in-progress (doesn't event compile yet).
 
 ![](docs/read-perf.png)
 
-| Concurrent clients | Num of operations | Performance | Std. dev |
-|--------------------|-------------------|-------------|----------|
-| 1                  | 10000             | 7708.5 rps  | 658.9    |
-| 2                  | 10000             | 11967.4 rps | 974.0    |
-| 3                  | 10000             | 17025.3 rps | 1471.0   |
-| 4                  | 10000             | 20999.1 rps | 1877.5   |
-| 5                  | 10000             | 25405.0 rps | 2120.7   |
-| 6                  | 10000             | 29784.4 rps | 3255.0   |
-| 7                  | 10000             | 33188.6 rps | 3223.1   |
-| 8                  | 10000             | 35290.2 rps | 4140.1   |
+| Concurrent clients | Num of operations | Performance |
+| ------------------ | ----------------- | ----------- |
+| 1                  | 10000             | 4566.9 rps  |
+| 2                  | 10000             | 7867.3 rps  |
+| 3                  | 10000             | 9270.4 rps  |
+| 4                  | 10000             | 11315.0 rps |
+| 5                  | 10000             | 12689.9 rps |
+| 6                  | 10000             | 13842.8 rps |
+| 7                  | 10000             | 14789.2 rps |
+| 8                  | 10000             | 15205.0 rps |
 
 Test protocol:
 
@@ -41,16 +44,16 @@ Test protocol:
 
 ![](docs/write-perf.png)
 
-| Concurrent clients | Num of operations | Performance | Std. dev |
-|--------------------|-------------------|-------------|----------|
-| 1                  | 10000             | 4985.3 rps  | 181.9    |
-| 2                  | 10000             | 8523.5 rps  | 622.5    |
-| 3                  | 10000             | 11209.3 rps | 679.9    |
-| 4                  | 10000             | 12707.9 rps | 973.0    |
-| 5                  | 10000             | 12711.2 rps | 1066.9   |
-| 6                  | 10000             | 12815.6 rps | 992.2    |
-| 7                  | 10000             | 12609.9 rps | 1957.7   |
-| 8                  | 10000             | 13344.6 rps | 878.0    |
+| Concurrent clients | Num of operations | Performance |
+| ------------------ | ----------------- | ----------- |
+| 1                  | 10000             | 3101.6 rps  |
+| 2                  | 10000             | 6010.6 rps  |
+| 3                  | 10000             | 6674.4 rps  |
+| 4                  | 10000             | 7130.7 rps  |
+| 5                  | 10000             | 7792.5 rps  |
+| 6                  | 10000             | 7897.0 rps  |
+| 7                  | 10000             | 7399.5 rps  |
+| 8                  | 10000             | 8098.5 rps  |
 
 Test protocol:
 

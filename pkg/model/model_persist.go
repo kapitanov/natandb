@@ -277,3 +277,57 @@ func (n *Node) writeSnapshot(file io.Writer) error {
 
 	return nil
 }
+
+// WriteToWAL writes model snapshot into WAL
+func (m *Root) WriteToWAL(wal storage.WALWriter) error {
+	log.Verbosef("writing wal data snapshot")
+
+	err := wal.BeginTx()
+	if err != nil {
+		return err
+	}
+
+	// Write node snapshots sequentially
+	for _, node := range m.NodesMap {
+		err = node.writeSnapshotToWAL(wal)
+		if err != nil {
+			return err
+		}
+	}
+
+	err = wal.CommitTx()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// writeSnapshotToWAL writes model node snapshot into WAL
+func (n *Node) writeSnapshotToWAL(wal storage.WALWriter) error {
+	// First we need to drop key entirely
+	// Otherwise reloading model from snapshot and WAL will re-add existing values
+	record := &storage.WALRecord{
+		Key:  n.Key,
+		Type: storage.WALRemoveKey,
+	}
+	err := wal.Write(record)
+	if err != nil {
+		return err
+	}
+
+	// Then - to add all values to this key
+	for _, value := range n.Values {
+		record := &storage.WALRecord{
+			Key:   n.Key,
+			Value: value,
+			Type:  storage.WALAddValue,
+		}
+		err := wal.Write(record)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

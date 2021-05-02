@@ -9,16 +9,12 @@ import (
 
 type transaction struct {
 	Engine       *engine
-	Model        *model.Root
-	WAL          storage.WALWriter
 	ShouldCommit bool
 }
 
 func newTransaction(engine *engine) *transaction {
 	tx := &transaction{
 		Engine:       engine,
-		Model:        engine.Model,
-		WAL:          engine.WAL,
 		ShouldCommit: false,
 	}
 	return tx
@@ -51,13 +47,13 @@ func (t *transaction) Close() error {
 // If data version is changed, a ErrDataOutOfDate error is returned
 // ErrDataOutOfDate is not returned if version parameter contains zero
 func (t *transaction) List(prefix Key, skip uint, limit uint, version uint64) (*PagedNodeList, error) {
-	if version != 0 && version != t.Model.LastChangeID {
+	if version != 0 && version != t.Engine.Model.LastChangeID {
 		return nil, ErrDataOutOfDate
 	}
 
 	// TODO dirty and inefficient implementation
 	array := make([]*Node, 0)
-	for k, n := range t.Model.NodesMap {
+	for k, n := range t.Engine.Model.NodesMap {
 		if prefix == "" || strings.Index(k, string(prefix)) == 0 {
 			array = append(array, mapNode(n))
 		}
@@ -80,7 +76,7 @@ func (t *transaction) List(prefix Key, skip uint, limit uint, version uint64) (*
 
 	list := &PagedNodeList{
 		Nodes:      array[lowIndex:count],
-		Version:    t.Model.LastChangeID,
+		Version:    t.Engine.Model.LastChangeID,
 		TotalCount: uint(len(array)),
 	}
 
@@ -89,13 +85,13 @@ func (t *transaction) List(prefix Key, skip uint, limit uint, version uint64) (*
 
 // GetVersion returns current data version
 func (t *transaction) GetVersion() uint64 {
-	return t.Model.LastChangeID
+	return t.Engine.Model.LastChangeID
 }
 
 // Get gets a node value by its key
 // If specified node doesn't exist, a ErrNoSuchKey error is returned
 func (t *transaction) Get(key Key) (*Node, error) {
-	node := t.Model.GetNode(string(key))
+	node := t.Engine.Model.GetNode(string(key))
 	if node == nil {
 		return nil, ErrNoSuchKey
 	}
@@ -108,13 +104,13 @@ func (t *transaction) Get(key Key) (*Node, error) {
 func (t *transaction) Set(key Key, values []Value) (*Node, error) {
 	// If new node value is empty or nil - just drop the node and exit
 	if values == nil || len(values) == 0 {
-		node := t.Model.GetNode(string(key))
+		node := t.Engine.Model.GetNode(string(key))
 		if node == nil {
 			// No need to drop node if it doesn't exist
 			return &Node{
 				Key:     key,
 				Values:  make([]Value, 0),
-				Version: t.Model.LastChangeID,
+				Version: t.Engine.Model.LastChangeID,
 			}, nil
 		}
 
@@ -126,7 +122,7 @@ func (t *transaction) Set(key Key, values []Value) (*Node, error) {
 		return mapNode(node), nil
 	}
 
-	node := t.Model.GetOrCreateNode(string(key))
+	node := t.Engine.Model.GetOrCreateNode(string(key))
 	changeCount := len(node.Values) + len(values)
 
 	var err error
@@ -158,7 +154,7 @@ func (t *transaction) Set(key Key, values []Value) (*Node, error) {
 // If specified node doesn't exists, it will be created
 // A specified value will be added to node even if it already exists
 func (t *transaction) AddValue(key Key, value Value) (*Node, error) {
-	node := t.Model.GetOrCreateNode(string(key))
+	node := t.Engine.Model.GetOrCreateNode(string(key))
 	err := t.write(storage.WALAddValue, node.Key, value)
 	if err != nil {
 		return nil, err
@@ -171,7 +167,7 @@ func (t *transaction) AddValue(key Key, value Value) (*Node, error) {
 // If specified node doesn't exists, it will be created
 // If node already contains the same value and "unique" parameter is set to "true", a ErrDuplicateValue error is returned
 func (t *transaction) AddUniqueValue(key Key, value Value) (*Node, error) {
-	node := t.Model.GetOrCreateNode(string(key))
+	node := t.Engine.Model.GetOrCreateNode(string(key))
 
 	if node.Contains(value) {
 		return nil, ErrDuplicateValue
@@ -189,7 +185,7 @@ func (t *transaction) AddUniqueValue(key Key, value Value) (*Node, error) {
 // If specified node doesn't exist, a ErrNoSuchKey error is returned
 // If specified value doesn't exist within a node, a ErrNoSuchValue error is returned
 func (t *transaction) RemoveValue(key Key, value Value) (*Node, error) {
-	node := t.Model.GetNode(string(key))
+	node := t.Engine.Model.GetNode(string(key))
 	if node == nil {
 		return nil, ErrNoSuchKey
 	}
@@ -220,7 +216,7 @@ func (t *transaction) RemoveValue(key Key, value Value) (*Node, error) {
 // If node contains specified value multiple times, all values are removed
 // If specified value doesn't exist within a node, a ErrNoSuchValue error is returned
 func (t *transaction) RemoveAllValues(key Key, value Value) (*Node, error) {
-	node := t.Model.GetNode(string(key))
+	node := t.Engine.Model.GetNode(string(key))
 	if node == nil {
 		return nil, ErrNoSuchKey
 	}
@@ -259,7 +255,7 @@ func (t *transaction) RemoveAllValues(key Key, value Value) (*Node, error) {
 // RemoveKey removes a key completely
 // If specified node doesn't exist, a ErrNoSuchKey error is returned
 func (t *transaction) RemoveKey(key Key) error {
-	node := t.Model.GetNode(string(key))
+	node := t.Engine.Model.GetNode(string(key))
 	if node == nil {
 		return ErrNoSuchKey
 	}
@@ -280,12 +276,12 @@ func (t *transaction) write(recordType storage.WALRecordType, key string, value 
 		Value: value,
 	}
 
-	err := t.WAL.Write(record)
+	err := t.Engine.WAL.Write(record)
 	if err != nil {
 		return err
 	}
 
-	err = t.Model.Apply(record)
+	err = t.Engine.Model.Apply(record)
 	if err != nil {
 		return err
 	}

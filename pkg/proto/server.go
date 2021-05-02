@@ -28,6 +28,10 @@ type serverImpl struct {
 	listener net.Listener
 }
 
+func (s *serverImpl) mustEmbedUnimplementedServiceServer() {
+	panic("implement me")
+}
+
 // NewServer creates new server instance
 func NewServer(engine db.Engine, endpoint string) Server {
 	server := grpc.NewServer()
@@ -96,8 +100,8 @@ func (s *serverImpl) List(context context.Context, request *ListRequest) (*Paged
 	return &response, nil
 }
 
-// GetVersion returns current data version
-func (s *serverImpl) GetVersion(context context.Context, request *None) (*DBVersion, error) {
+// Version returns current data version
+func (s *serverImpl) Version(context context.Context, request *None) (*DBVersion, error) {
 	var response DBVersion
 	err := s.engine.Tx(func(tx db.TX) error {
 		version := tx.GetVersion()
@@ -114,9 +118,9 @@ func (s *serverImpl) GetVersion(context context.Context, request *None) (*DBVers
 	return &response, nil
 }
 
-// GetValue gets a node value by its key
+// Get gets a node value by its key
 // If specified node doesn't exist, a ErrNoSuchKey error is returned
-func (s *serverImpl) GetValue(context context.Context, request *GetRequest) (*Node, error) {
+func (s *serverImpl) Get(context context.Context, request *GetRequest) (*Node, error) {
 	var response *Node
 	err := s.engine.Tx(func(tx db.TX) error {
 		node, err := tx.Get(db.Key(request.Key))
@@ -135,9 +139,9 @@ func (s *serverImpl) GetValue(context context.Context, request *GetRequest) (*No
 	return response, nil
 }
 
-// SetValue sets a node value, rewriting its value if node already exists
+// Set sets a node value, rewriting its value if node already exists
 // If specified node doesn't exists, it will be created
-func (s *serverImpl) SetValue(context context.Context, request *SetValueRequest) (*Node, error) {
+func (s *serverImpl) Set(context context.Context, request *SetRequest) (*Node, error) {
 	var response *Node
 	err := s.engine.Tx(func(tx db.TX) error {
 		values := make([]db.Value, len(request.Values))
@@ -161,35 +165,22 @@ func (s *serverImpl) SetValue(context context.Context, request *SetValueRequest)
 	return response, nil
 }
 
-// AddValue defines an "append value" operation
+// Add defines an "append value" operation
 // If specified node doesn't exists, it will be created
 // A specified value will be added to node even if it already exists
-func (s *serverImpl) AddValue(context context.Context, request *AddValueRequest) (*Node, error) {
-	var response *Node
-	err := s.engine.Tx(func(tx db.TX) error {
-		node, err := tx.AddValue(db.Key(request.Key), request.Value)
-		if err != nil {
-			return err
-		}
-
-		response = serverMapNode(node)
-		return nil
-	})
-
-	if err != nil {
-		return nil, mapServerError(err)
-	}
-
-	return response, nil
-}
-
-// AddUniqueValue defines an "append value" operation
-// If specified node doesn't exists, it will be created
 // If node already contains the same value and "unique" parameter is set to "true", a ErrDuplicateValue error is returned
-func (s *serverImpl) AddUniqueValue(context context.Context, request *AddUniqueValueRequest) (*Node, error) {
+func (s *serverImpl) Add(context context.Context, request *AddRequest) (*Node, error) {
 	var response *Node
 	err := s.engine.Tx(func(tx db.TX) error {
-		node, err := tx.AddUniqueValue(db.Key(request.Key), request.Value)
+		var node *db.Node
+		var err error
+
+		if request.Unique {
+			node, err = tx.AddUniqueValue(db.Key(request.Key), request.Value)
+		} else {
+			node, err = tx.AddValue(db.Key(request.Key), request.Value)
+		}
+
 		if err != nil {
 			return err
 		}
@@ -205,36 +196,23 @@ func (s *serverImpl) AddUniqueValue(context context.Context, request *AddUniqueV
 	return response, nil
 }
 
-// RemoveValue defines an "remove value" operation
+// Remove defines an "remove value" operation
 // If specified node doesn't exist, a ErrNoSuchKey error is returned
 // If specified value doesn't exist within a node, a ErrNoSuchValue error is returned
-func (s *serverImpl) RemoveValue(context context.Context, request *RemoveValueRequest) (*Node, error) {
-	var response *Node
-	err := s.engine.Tx(func(tx db.TX) error {
-		node, err := tx.RemoveValue(db.Key(request.Key), request.Value)
-		if err != nil {
-			return err
-		}
-
-		response = serverMapNode(node)
-		return nil
-	})
-
-	if err != nil {
-		return nil, mapServerError(err)
-	}
-
-	return response, nil
-}
-
-// RemoveAllValues defines an "remove value" operation
-// If specified node doesn't exist, a ErrNoSuchKey error is returned
 // If node contains specified value multiple times, all values are removed
-// If specified value doesn't exist within a node, a ErrNoSuchValue error is returned
-func (s *serverImpl) RemoveAllValues(context context.Context, request *RemoveAllValuesRequest) (*Node, error) {
+// (unless a "all" parameter is set to "false"
+func (s *serverImpl) Remove(context context.Context, request *RemoveRequest) (*Node, error) {
 	var response *Node
 	err := s.engine.Tx(func(tx db.TX) error {
-		node, err := tx.RemoveAllValues(db.Key(request.Key), request.Value)
+		var node *db.Node
+		var err error
+
+		if request.All {
+			node, err = tx.RemoveAllValues(db.Key(request.Key), request.Value)
+		} else {
+			node, err = tx.RemoveValue(db.Key(request.Key), request.Value)
+		}
+
 		if err != nil {
 			return err
 		}
@@ -250,9 +228,9 @@ func (s *serverImpl) RemoveAllValues(context context.Context, request *RemoveAll
 	return response, nil
 }
 
-// RemoveKey removes a key completely
+// Delete removes a key completely
 // If specified node doesn't exist, a ErrNoSuchKey error is returned
-func (s *serverImpl) RemoveKey(context context.Context, request *RemoveKeyRequest) (*None, error) {
+func (s *serverImpl) Delete(context context.Context, request *DeleteRequest) (*None, error) {
 	var response *None
 	err := s.engine.Tx(func(tx db.TX) error {
 		err := tx.RemoveKey(db.Key(request.Key))

@@ -2,6 +2,7 @@ package db
 
 import (
 	"sync"
+	"time"
 
 	l "github.com/kapitanov/natandb/pkg/log"
 	"github.com/kapitanov/natandb/pkg/model"
@@ -9,6 +10,10 @@ import (
 )
 
 var log = l.New("engine")
+
+const (
+	vacuumPeriod = 30 * time.Hour
+)
 
 type engine struct {
 	Model      *model.Root
@@ -18,15 +23,43 @@ type engine struct {
 	IsShutDown bool
 }
 
+type engineOptions struct {
+	driver                 storage.Driver
+	enableBackgroundVacuum bool
+}
+
+// Option is a configuration option of NewEngine()
+type Option func(*engineOptions)
+
+// StorageDriverOption sets a storage driver instance
+func StorageDriverOption(driver storage.Driver) Option {
+	return func(opts *engineOptions) {
+		opts.driver = driver
+	}
+}
+
+// EnableBackgroundVacuumOption turn background vacuum on and off
+func EnableBackgroundVacuumOption(enable bool) Option {
+	return func(opts *engineOptions) {
+		opts.enableBackgroundVacuum = enable
+	}
+}
+
 // NewEngine creates new instance of DB engine
-func NewEngine(driver storage.Driver) (Engine, error) {
+func NewEngine(options ...Option) (Engine, error) {
+	opts := &engineOptions{}
+	for _, f := range options {
+		f(opts)
+	}
+
 	log.Verbosef("initializing engine")
-	root, err := model.Restore(driver)
+	root, err := model.Restore(opts.driver)
 	if err != nil {
 		return nil, err
 	}
 
-	wal, err := driver.WALFile().Write()
+	log.Verbosef("opening wal file")
+	wal, err := opts.driver.WALFile().Write()
 	if err != nil {
 		return nil, err
 	}
@@ -35,11 +68,12 @@ func NewEngine(driver storage.Driver) (Engine, error) {
 		Model:     root,
 		ModelLock: new(sync.Mutex),
 		WAL:       wal,
-		Storage:   driver,
+		Storage:   opts.driver,
 	}
 
-	// TODO bg model flush
-	// TODO bg wal compression
+	if opts.enableBackgroundVacuum {
+		engine.runBackgroundVacuum()
+	}
 
 	log.Printf("engine is initialized")
 
@@ -88,9 +122,103 @@ func (e *engine) Tx(fn func(tx TX) error) error {
 	return nil
 }
 
+// Vacuum performs DB maintenance routine
+func (e *engine) Vacuum() error {
+	return e.Tx(func(tx TX) error {
+		log.Printf("compressing database")
+
+		// Write a model snapshot
+		file, err := e.Storage.SnapshotFile().Write()
+		if err != nil {
+			return err
+		}
+		err = e.Model.WriteSnapshot(file)
+		if err != nil {
+			_ = file.Close()
+			return err
+		}
+		err = file.Close()
+		if err != nil {
+			return err
+		}
+
+		// Close WAL transaction and shut down WAL
+		err = e.WAL.CommitTx()
+		if err != nil {
+			return err
+		}
+		err = e.WAL.Close()
+		if err != nil {
+			return err
+		}
+
+		// Clear WAL file
+		vacuum, err := e.Storage.WALFile().BeginVacuum(e.WAL)
+		if err != nil {
+			return err
+		}
+
+		// Create new WAL file
+		e.WAL, err = vacuum.End()
+		if err != nil {
+			return err
+		}
+
+		// Dump model state to WAL
+		err = e.Model.WriteToWAL(e.WAL)
+		if err != nil {
+			return err
+		}
+		err = e.WAL.Close()
+		if err != nil {
+			return err
+		}
+
+		// Reload engine state
+		e.Model, err = model.Restore(e.Storage)
+		if err != nil {
+			return err
+		}
+		e.WAL, err = e.Storage.WALFile().Write()
+		if err != nil {
+			return err
+		}
+
+		// Start new WAL transaction
+		err = e.WAL.BeginTx()
+		if err != nil {
+			return err
+		}
+
+		log.Printf("database compression completed")
+		return nil
+	})
+}
+
+// runBackgroundVacuum runs Vacuum routine in background
+func (e *engine) runBackgroundVacuum() {
+	go func() {
+		for {
+			time.Sleep(vacuumPeriod)
+
+			err := e.Vacuum()
+			if err != nil {
+				if err == ErrShutdown {
+					return
+				}
+
+				panic(err)
+			}
+		}
+	}()
+}
+
 // Close shuts engine down gracefully
 func (e *engine) Close() error {
 	err := e.WAL.Close()
+	if err != nil {
+		return err
+	}
 
 	file, err := e.Storage.SnapshotFile().Write()
 	if err != nil {

@@ -132,7 +132,7 @@ type walFile struct {
 
 // Read opens WAL file for reading
 func (f *walFile) Read() (WALReader, error) {
-	file, err := os.OpenFile(f.path, os.O_RDONLY|os.O_CREATE, 0755)
+	file, err := os.OpenFile(f.path, os.O_CREATE|os.O_RDWR, 0755)
 	if err != nil {
 		log.Errorf("unable to open file \"%s\": %s", f.path, err)
 		return nil, err
@@ -150,6 +150,47 @@ func (f *walFile) Write() (WALWriter, error) {
 	}
 
 	return newWALWriter(file)
+}
+
+// BeginVacuum starts vacuum routine
+// WAL readers and writers must be closed before calling BeginVacuum()
+func (f *walFile) BeginVacuum(writer WALWriter) (WALVacuum, error) {
+	// Remember last ID/TX
+	w := writer.(*walWriter)
+	v := &walVacuum{
+		file:      f,
+		idCounter: w.idCounter,
+		txCounter: w.txCounter,
+	}
+
+	// Drop WAL file
+	err := os.Remove(f.path)
+	if err != nil && err != os.ErrNotExist {
+		return nil, err
+	}
+
+	return v, nil
+}
+
+type walVacuum struct {
+	file      *walFile
+	idCounter uint64
+	txCounter uint64
+}
+
+// End opens WAL file for writing without resetting ID and TxID counters
+func (v *walVacuum) End() (WALWriter, error) {
+	writer, err := v.file.Write()
+	if err != nil {
+		return nil, err
+	}
+
+	// Restore last ID/TX
+	w := writer.(*walWriter)
+	w.idCounter = v.idCounter
+	w.txCounter = v.txCounter
+
+	return writer, nil
 }
 
 // SnapshotFile provides access to snapshot file

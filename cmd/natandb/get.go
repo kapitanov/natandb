@@ -24,9 +24,9 @@ func init() {
 		request := proto.GetRequest{
 			Key: args[0],
 		}
-		response, err := client.GetValue(ctx, &request)
+		response, err := client.Get(ctx, &request)
 		if err != nil {
-			log.Printf("unable to execute \"GetValue\": %s", err)
+			log.Printf("unable to execute \"Get\": %s", err)
 			return err
 		}
 

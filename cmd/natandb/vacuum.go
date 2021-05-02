@@ -1,25 +1,20 @@
 package main
 
 import (
-	"os"
-	"os/signal"
-
 	"github.com/spf13/cobra"
 
 	"github.com/kapitanov/natandb/pkg/db"
-	"github.com/kapitanov/natandb/pkg/proto"
 	"github.com/kapitanov/natandb/pkg/storage"
 )
 
 func init() {
 	cmd := &cobra.Command{
-		Use:   "run",
-		Short: "Run NatanDB server",
+		Use:   "vacuum",
+		Short: "Run a \"vacuum\" routine on NatanDB server",
 	}
 	rootCmd.AddCommand(cmd)
 
 	dataDir := cmd.Flags().StringP("data", "d", "./data", "path to data directory")
-	endpoint := cmd.Flags().StringP("listen", "l", "0.0.0.0:18081", "endpoint to listen")
 
 	cmd.Run = func(c *cobra.Command, args []string) {
 		driver, err := storage.NewDriver(storage.DirectoryOption(*dataDir))
@@ -28,7 +23,7 @@ func init() {
 			panic(err)
 		}
 
-		engine, err := db.NewEngine(db.StorageDriverOption(driver), db.EnableBackgroundVacuumOption(true))
+		engine, err := db.NewEngine(db.StorageDriverOption(driver))
 		if err != nil {
 			log.Errorf("unable to init engine: %s", err)
 			panic(err)
@@ -42,25 +37,10 @@ func init() {
 			}
 		}()
 
-		server := proto.NewServer(engine, *endpoint)
-
-		err = server.Start()
+		err = engine.Vacuum()
 		if err != nil {
-			log.Errorf("unable to init server: %s", err)
+			log.Errorf("vacuum routine failed: %s", err)
 			panic(err)
 		}
-
-		defer func() {
-			err := server.Close()
-			if err != nil {
-				log.Errorf("unable to shutdown engine: %s", err)
-				panic(err)
-			}
-		}()
-
-		signals := make(chan os.Signal)
-		signal.Notify(signals, os.Interrupt, os.Kill)
-
-		_ = <-signals
 	}
 }

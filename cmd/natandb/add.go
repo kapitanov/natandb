@@ -18,13 +18,13 @@ func init() {
 	rootCmd.AddCommand(cmd)
 
 	clientNodeCommand(cmd, func(args []string, client proto.Client, ctx context.Context) (*proto.Node, error) {
-		request := proto.AddValueRequest{
+		request := proto.AddRequest{
 			Key:   args[0],
 			Value: []byte(args[1]),
 		}
-		response, err := client.AddValue(ctx, &request)
+		response, err := client.Add(ctx, &request)
 		if err != nil {
-			log.Printf("unable to execute \"AddValue\": %s", err)
+			log.Printf("unable to execute \"Add\": %s", err)
 			return nil, err
 		}
 

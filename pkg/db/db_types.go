@@ -80,6 +80,9 @@ type Engine interface {
 	// Tx executes a function within a transaction
 	Tx(func(tx TX) error) error
 
+	// Vacuum performs DB maintenance routine
+	Vacuum() error
+
 	// Close shuts engine down gracefully
 	Close() error
 }
