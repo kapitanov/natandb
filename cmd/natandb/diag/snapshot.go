@@ -21,13 +21,13 @@ func init() {
 	dataDir := cmd.Flags().StringP("data", "d", "./data", "path to data directory")
 
 	cmd.Run = func(c *cobra.Command, args []string) {
-		driver, err := storage.NewDriver(*dataDir)
+		driver, err := storage.NewDriver(storage.DirectoryOption(*dataDir))
 		if err != nil {
 			log.Printf("unable to init storage driver: %s", err)
 			panic(err)
 		}
 
-		f, err := driver.ReadSnapshotFile()
+		f, err := driver.SnapshotFile().Read()
 		if err != nil {
 			log.Printf("unable to read snapshot file: %s", err)
 			panic(err)

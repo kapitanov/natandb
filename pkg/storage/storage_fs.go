@@ -1,83 +1,185 @@
 package storage
 
 import (
+	"fmt"
 	"github.com/kapitanov/natandb/pkg/util"
 	"io"
 	"os"
 	"path/filepath"
 )
 
-type driverImpl struct {
+type driver struct {
+	wal      *walFile
+	snapshot *snapshotFile
+}
+
+type driverOptions struct {
 	walFilePath      string
 	snapshotFilePath string
 }
 
+// DriverOption is a configuration function for NewDriver
+type DriverOption func(*driverOptions) error
+
+// DirectoryOption sets path to directory that contains WAL and snapshot files
+func DirectoryOption(path string) DriverOption {
+	return func(options *driverOptions) error {
+		absPath, err := filepath.Abs(path)
+		if err != nil {
+			log.Errorf("malformed path \"%s\": %s", path, err)
+			return err
+		}
+		path = absPath
+
+		walFilePath := filepath.Join(absPath, "journal.dat")
+		err = WALFileOption(walFilePath)(options)
+		if err != nil {
+			return err
+		}
+
+		snapshotFilePath := filepath.Join(absPath, "snapshot.dat")
+		err = SnapshotFileOption(snapshotFilePath)(options)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
+}
+
+// WALFileOption sets path to WAL file
+func WALFileOption(path string) DriverOption {
+	return func(options *driverOptions) error {
+		absPath, err := filepath.Abs(path)
+		if err != nil {
+			log.Errorf("malformed path \"%s\": %s", path, err)
+			return err
+		}
+
+		directory, _ := filepath.Split(absPath)
+		err = util.MkDir(directory)
+		if err != nil {
+			return err
+		}
+
+		options.walFilePath = absPath
+		return nil
+	}
+}
+
+// SnapshotFileOption sets path to snapshot file
+func SnapshotFileOption(path string) DriverOption {
+	return func(options *driverOptions) error {
+		absPath, err := filepath.Abs(path)
+		if err != nil {
+			log.Errorf("malformed path \"%s\": %s", path, err)
+			return err
+		}
+
+		directory, _ := filepath.Split(absPath)
+		err = util.MkDir(directory)
+		if err != nil {
+			return err
+		}
+
+		options.snapshotFilePath = absPath
+		return nil
+	}
+}
+
 // NewDriver creates an instance of Driver based on physical files
-func NewDriver(directory string) (Driver, error) {
-	directory, err := filepath.Abs(directory)
-	if err != nil {
-		log.Errorf("malformed path \"%s\": %s", directory, err)
-		return nil, err
+func NewDriver(opts ...DriverOption) (Driver, error) {
+	options := &driverOptions{}
+	for _, opt := range opts {
+		err := opt(options)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	log.Verbosef("using directory \"%s\"", directory)
-	err = util.MkDir(directory)
-	if err != nil {
-		log.Errorf("unable to initialize storage driver. %s", err)
-		return nil, err
+	if options.walFilePath == "" {
+		return nil, fmt.Errorf("wal path is not configured")
 	}
 
-	walFilePath := filepath.Join(directory, "journal.bin")
-	snapshotFilePath := filepath.Join(directory, "snapshot.bin")
+	if options.snapshotFilePath == "" {
+		return nil, fmt.Errorf("wal path is not configured")
+	}
 
-	impl := driverImpl{walFilePath, snapshotFilePath}
-	return &impl, nil
+	log.Verbosef("got wal file path \"%s\"", options.walFilePath)
+	log.Verbosef("got snapshot file path \"%s\"", options.snapshotFilePath)
+
+	d := &driver{
+		wal:      &walFile{options.walFilePath},
+		snapshot: &snapshotFile{options.snapshotFilePath},
+	}
+	return d, nil
 }
 
-// ReadWalFile opens WAL log file for reading
-func (impl *driverImpl) ReadWalFile() (io.ReadSeeker, error) {
-	f, err := os.OpenFile(impl.walFilePath, os.O_RDONLY|os.O_CREATE, 0755)
-	if err != nil {
-		log.Errorf("unable to open file \"%s\" for reading: %s", impl.walFilePath, err)
-		return nil, err
-	}
-
-	log.Verbosef("opened \"%s\" for reading", impl.walFilePath)
-	return f, nil
+// WALFile provides access to WAL file
+func (d *driver) WALFile() WALFile {
+	return d.wal
 }
 
-// WriteWalFile opens WAL log file for writing
-func (impl *driverImpl) WriteWalFile() (io.WriteCloser, error) {
-	f, err := os.OpenFile(impl.walFilePath, os.O_WRONLY|os.O_CREATE, 0755)
-	if err != nil {
-		log.Errorf("unable to open file \"%s\" for writing: %s", impl.walFilePath, err)
-		return nil, err
-	}
-
-	log.Verbosef("opened \"%s\" for writing", impl.walFilePath)
-	return f, nil
+// SnapshotFile provides access to snapshot file
+func (d *driver) SnapshotFile() SnapshotFile {
+	return d.snapshot
 }
 
-// ReadSnapshotFile opens data snapshot file file for reading
-func (impl *driverImpl) ReadSnapshotFile() (io.ReadCloser, error) {
-	f, err := os.OpenFile(impl.snapshotFilePath, os.O_RDONLY|os.O_CREATE, 0755)
-	if err != nil {
-		log.Errorf("unable to open file \"%s\" for reading: %s", impl.snapshotFilePath, err)
-		return nil, err
-	}
-
-	log.Verbosef("opened \"%s\" for reading", impl.snapshotFilePath)
-	return f, nil
+// walFile provides access to WAL file
+type walFile struct {
+	path string
 }
 
-// WriteSnapshotFile opens data snapshot file for writing
-func (impl *driverImpl) WriteSnapshotFile() (io.WriteCloser, error) {
-	f, err := os.OpenFile(impl.snapshotFilePath, os.O_WRONLY|os.O_CREATE, 0755)
+// Read opens WAL file for reading
+func (f *walFile) Read() (WALReader, error) {
+	file, err := os.OpenFile(f.path, os.O_RDONLY|os.O_CREATE, 0755)
 	if err != nil {
-		log.Errorf("storage: unable to open file \"%s\" for writing: %s", impl.snapshotFilePath, err)
+		log.Errorf("unable to open file \"%s\": %s", f.path, err)
 		return nil, err
 	}
 
-	log.Verbosef("opened \"%s\" for writing", impl.snapshotFilePath)
-	return f, nil
+	return newWALReader(file)
+}
+
+// Write opens WAL file for writing
+func (f *walFile) Write() (WALWriter, error) {
+	file, err := os.OpenFile(f.path, os.O_CREATE|os.O_RDWR, 0755)
+	if err != nil {
+		log.Errorf("unable to open file \"%s\": %s", f.path, err)
+		return nil, err
+	}
+
+	return newWALWriter(file)
+}
+
+// SnapshotFile provides access to snapshot file
+type snapshotFile struct {
+	path string
+}
+
+// Read opens snapshot file for reading
+func (f *snapshotFile) Read() (io.ReadCloser, error) {
+	file, err := os.OpenFile(f.path, os.O_RDONLY|os.O_CREATE, 0755)
+	if err != nil {
+		log.Errorf("unable to open file \"%s\": %s", f.path, err)
+		return nil, err
+	}
+
+	return file, nil
+}
+
+// Write opens snapshot file for writing
+func (f *snapshotFile) Write() (io.WriteCloser, error) {
+	file, err := os.OpenFile(f.path, os.O_CREATE|os.O_WRONLY, 0755)
+	if err != nil {
+		log.Errorf("unable to open file \"%s\": %s", f.path, err)
+		return nil, err
+	}
+
+	err = file.Truncate(0)
+	if err != nil {
+		return nil, err
+	}
+
+	return file, nil
 }

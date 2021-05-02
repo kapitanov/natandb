@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/kapitanov/natandb/pkg/model"
-	"github.com/kapitanov/natandb/pkg/writeahead"
+	"github.com/kapitanov/natandb/pkg/storage"
 )
 
 func TestGetNode(t *testing.T) {
@@ -49,10 +49,10 @@ func TestApply_AddValue_NodeNotExists(t *testing.T) {
 	root := model.New()
 
 	// Add value
-	record := &writeahead.Record{
+	record := &storage.WALRecord{
 		ID:    1,
 		Key:   "foobar",
-		Type:  writeahead.AddValue,
+		Type:  storage.WALAddValue,
 		Value: model.Value("VAL1"),
 	}
 	err := root.Apply(record)
@@ -94,10 +94,10 @@ func TestApply_AddValue_NodeExists(t *testing.T) {
 	root := model.New()
 
 	// Add 1st value
-	record := &writeahead.Record{
+	record := &storage.WALRecord{
 		ID:    1,
 		Key:   "foobar",
-		Type:  writeahead.AddValue,
+		Type:  storage.WALAddValue,
 		Value: model.Value("VAL1"),
 	}
 	err := root.Apply(record)
@@ -107,10 +107,10 @@ func TestApply_AddValue_NodeExists(t *testing.T) {
 	}
 
 	// Add 2nd value
-	record = &writeahead.Record{
+	record = &storage.WALRecord{
 		ID:    2,
 		Key:   "foobar",
-		Type:  writeahead.AddValue,
+		Type:  storage.WALAddValue,
 		Value: model.Value("VAL2"),
 	}
 	err = root.Apply(record)
@@ -154,10 +154,10 @@ func TestApply_RemoveValue_NodeExists(t *testing.T) {
 	root := model.New()
 
 	// Add 1st value
-	record := &writeahead.Record{
+	record := &storage.WALRecord{
 		ID:    1,
 		Key:   "foobar",
-		Type:  writeahead.AddValue,
+		Type:  storage.WALAddValue,
 		Value: model.Value("VAL1"),
 	}
 	err := root.Apply(record)
@@ -167,10 +167,10 @@ func TestApply_RemoveValue_NodeExists(t *testing.T) {
 	}
 
 	// Add 2nd value
-	record = &writeahead.Record{
+	record = &storage.WALRecord{
 		ID:    2,
 		Key:   "foobar",
-		Type:  writeahead.AddValue,
+		Type:  storage.WALAddValue,
 		Value: model.Value("VAL2"),
 	}
 	err = root.Apply(record)
@@ -180,10 +180,10 @@ func TestApply_RemoveValue_NodeExists(t *testing.T) {
 	}
 
 	// Remove 1st value
-	record = &writeahead.Record{
+	record = &storage.WALRecord{
 		ID:    3,
 		Key:   "foobar",
-		Type:  writeahead.RemoveValue,
+		Type:  storage.WALRemoveValue,
 		Value: model.Value("VAL1"),
 	}
 	err = root.Apply(record)
@@ -226,10 +226,10 @@ func TestApply_RemoveValue_NodeNotExists(t *testing.T) {
 	root := model.New()
 
 	// Remove value
-	record := &writeahead.Record{
+	record := &storage.WALRecord{
 		ID:    3,
 		Key:   "foobar",
-		Type:  writeahead.RemoveValue,
+		Type:  storage.WALRemoveValue,
 		Value: model.Value("VAL1"),
 	}
 	err := root.Apply(record)
@@ -255,10 +255,10 @@ func TestApply_RemoveKey_NodeExists(t *testing.T) {
 	root := model.New()
 
 	// Add value
-	record := &writeahead.Record{
+	record := &storage.WALRecord{
 		ID:    1,
 		Key:   "foobar",
-		Type:  writeahead.AddValue,
+		Type:  storage.WALAddValue,
 		Value: model.Value("VAL1"),
 	}
 	err := root.Apply(record)
@@ -268,10 +268,10 @@ func TestApply_RemoveKey_NodeExists(t *testing.T) {
 	}
 
 	// Remove key
-	record = &writeahead.Record{
+	record = &storage.WALRecord{
 		ID:   2,
 		Key:  "foobar",
-		Type: writeahead.RemoveKey,
+		Type: storage.WALRemoveKey,
 	}
 	err = root.Apply(record)
 	if err != nil {
@@ -296,10 +296,10 @@ func TestApply_RemoveKey_NodeNotExists(t *testing.T) {
 	root := model.New()
 
 	// Remove key
-	record := &writeahead.Record{
+	record := &storage.WALRecord{
 		ID:   2,
 		Key:  "foobar",
-		Type: writeahead.RemoveKey,
+		Type: storage.WALRemoveKey,
 	}
 	err := root.Apply(record)
 	if err != nil {
@@ -324,9 +324,9 @@ func TestApply_AlreadyApplied(t *testing.T) {
 	root := model.New()
 
 	// Remove key
-	record := &writeahead.Record{
+	record := &storage.WALRecord{
 		ID:   1,
-		Type: writeahead.None,
+		Type: storage.WALNone,
 	}
 	err := root.Apply(record)
 	if err != nil {

@@ -23,9 +23,15 @@ func WriteUint32(w io.Writer, value uint32) error {
 	return writeBuffer(w, writerBuffer[0:4])
 }
 
+// WriteUint16 writes an uint32 value into a stream
+func WriteUint16(w io.Writer, value uint16) error {
+	writerByteOrder.PutUint16(writerBuffer, value)
+	return writeBuffer(w, writerBuffer[0:2])
+}
+
 // WriteUint8 writes an uint8 value into a stream
 func WriteUint8(w io.Writer, value uint8) error {
-	writerBuffer[0] = byte(value)
+	writerBuffer[0] = value
 	return writeBuffer(w, writerBuffer[0:1])
 }
 

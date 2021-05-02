@@ -17,7 +17,7 @@ func init() {
 
 	rootCmd.AddCommand(cmd)
 
-	all := cmd.Flags().BoolP("all", "a", false, "remove all occurences of value")
+	all := cmd.Flags().BoolP("all", "a", false, "remove all occurrences of value")
 
 	clientNodeCommand(cmd, func(args []string, client proto.Client, ctx context.Context) (*proto.Node, error) {
 		var node *proto.Node

@@ -1,10 +1,10 @@
 package proto
 
 import (
-	context "context"
+	"context"
 
 	l "github.com/kapitanov/natandb/pkg/log"
-	grpc "google.golang.org/grpc"
+	"google.golang.org/grpc"
 )
 
 var clientLog = l.New("client")
@@ -56,7 +56,7 @@ func (c *clientImpl) GetValue(ctx context.Context, in *GetRequest, opts ...grpc.
 	return c.client.GetValue(ctx, in, opts...)
 }
 
-// SetValue sets a node value, rewritting its value if node already exists
+// SetValue sets a node value, rewriting its value if node already exists
 // If specified node doesn't exists, it will be created
 func (c *clientImpl) SetValue(ctx context.Context, in *SetValueRequest, opts ...grpc.CallOption) (*Node, error) {
 	return c.client.SetValue(ctx, in, opts...)

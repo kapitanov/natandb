@@ -22,7 +22,7 @@ const (
 )
 
 var (
-	minLogLevel Level = Verbose
+	minLogLevel = Verbose
 )
 
 func New(prefix string) Logger {

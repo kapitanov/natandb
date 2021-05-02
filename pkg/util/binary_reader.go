@@ -35,6 +35,18 @@ func ReadUint32(r io.Reader) (uint32, error) {
 	return value, nil
 }
 
+// ReadUint16 reads an uint32 binary value from a stream
+func ReadUint16(r io.Reader) (uint16, error) {
+	buffer := readerBuffer[0:]
+	err := readBuffer(r, buffer)
+	if err != nil {
+		return 0, err
+	}
+
+	value := readerByteOrder.Uint16(buffer)
+	return value, nil
+}
+
 // ReadUint8 reads an uint8 binary value from a stream
 func ReadUint8(r io.Reader) (uint8, error) {
 	buffer := readerBuffer[0:1]
@@ -43,7 +55,7 @@ func ReadUint8(r io.Reader) (uint8, error) {
 		return 0, err
 	}
 
-	value := uint8(buffer[0])
+	value := buffer[0]
 	return value, nil
 }
 

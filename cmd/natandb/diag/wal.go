@@ -2,13 +2,13 @@ package diag
 
 import (
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
 
 	"github.com/kapitanov/natandb/pkg/storage"
-	"github.com/kapitanov/natandb/pkg/writeahead"
 )
 
 func init() {
@@ -23,13 +23,13 @@ func init() {
 	max := cmd.Flags().Uint64("max", ^uint64(0), "max ID to display")
 
 	cmd.Run = func(c *cobra.Command, args []string) {
-		driver, err := storage.NewDriver(*dataDir)
+		driver, err := storage.NewDriver(storage.DirectoryOption(*dataDir))
 		if err != nil {
 			log.Printf("unable to init storage driver: %s", err)
 			panic(err)
 		}
 
-		wal, err := writeahead.NewLog(driver, writeahead.NewSerializer())
+		wal, err := driver.WALFile().Read()
 		if err != nil {
 			log.Printf("unable to init wal: %s", err)
 			panic(err)
@@ -42,29 +42,24 @@ func init() {
 			}
 		}()
 
-		records := make([]*writeahead.Record, 0)
+		records := make([]*storage.WALRecord, 0)
 
 		minID := *min
 		maxID := *max
 
 		for {
-			chunk, err := wal.ReadChunkForward(minID+1, 100)
+			record, err := wal.Read()
 			if err != nil {
+				if err == io.EOF {
+					break
+				}
 				log.Printf("unable to read wal file: %s", err)
 				os.Exit(1)
 				return
 			}
 
-			for _, r := range chunk {
-				minID = r.ID
-
-				if minID <= r.ID && r.ID <= maxID {
-					records = append(records, r)
-				}
-			}
-
-			if chunk.Empty() {
-				break
+			if minID <= record.ID && record.ID <= maxID {
+				records = append(records, record)
 			}
 		}
 
@@ -75,17 +70,20 @@ func init() {
 		for _, r := range records {
 			var typeStr string
 			switch r.Type {
-			case writeahead.None:
+			case storage.WALNone:
 				typeStr = "NONE"
 				break
-			case writeahead.AddValue:
+			case storage.WALAddValue:
 				typeStr = "ADDVAL"
 				break
-			case writeahead.RemoveValue:
+			case storage.WALRemoveValue:
 				typeStr = "RMVAL"
 				break
-			case writeahead.RemoveKey:
+			case storage.WALRemoveKey:
 				typeStr = "RMKEY"
+				break
+			case storage.WALCommitTx:
+				typeStr = "COMMIT"
 				break
 			default:
 				typeStr = fmt.Sprintf("[%d]", r.Type)

@@ -7,8 +7,8 @@
 [x] Command-line client
 [ ] Background model snapshot write
 [ ] Background WAL compression
-[ ] WAL error correction
-[ ] WAL version check
+[x] WAL error correction
+[x] WAL version check
 [x] Proper logging
 [ ] Generate RPM package
 [x] Generate Docker image

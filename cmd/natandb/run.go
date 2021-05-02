@@ -9,7 +9,6 @@ import (
 	"github.com/kapitanov/natandb/pkg/db"
 	"github.com/kapitanov/natandb/pkg/proto"
 	"github.com/kapitanov/natandb/pkg/storage"
-	"github.com/kapitanov/natandb/pkg/writeahead"
 )
 
 func init() {
@@ -23,19 +22,13 @@ func init() {
 	endpoint := cmd.Flags().StringP("listen", "l", "0.0.0.0:18081", "endpoint to listen")
 
 	cmd.Run = func(c *cobra.Command, args []string) {
-		driver, err := storage.NewDriver(*dataDir)
+		driver, err := storage.NewDriver(storage.DirectoryOption(*dataDir))
 		if err != nil {
 			log.Errorf("unable to init storage driver: %s", err)
 			panic(err)
 		}
 
-		wal, err := writeahead.NewLog(driver, writeahead.NewSerializer())
-		if err != nil {
-			log.Errorf("unable to init wal: %s", err)
-			panic(err)
-		}
-
-		engine, err := db.NewEngine(wal, driver)
+		engine, err := db.NewEngine(driver)
 		if err != nil {
 			log.Errorf("unable to init engine: %s", err)
 			panic(err)

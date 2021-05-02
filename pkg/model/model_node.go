@@ -2,8 +2,7 @@ package model
 
 import (
 	"fmt"
-
-	"github.com/kapitanov/natandb/pkg/writeahead"
+	"github.com/kapitanov/natandb/pkg/storage"
 )
 
 // Value is a node value
@@ -49,21 +48,23 @@ func (n *Node) Contains(value Value) bool {
 }
 
 // Apply applied a write-ahead log record to a data model node
-func (n *Node) apply(record *writeahead.Record) error {
+func (n *Node) apply(record *storage.WALRecord) error {
 	if record.ID <= n.LastChangeID {
 		return nil
 	}
 
 	switch record.Type {
-	case writeahead.None:
+	case storage.WALNone:
 		break
-	case writeahead.RemoveKey:
+	case storage.WALCommitTx:
+		return nil
+	case storage.WALRemoveKey:
 		n.Values = n.Values[0:0]
 		break
-	case writeahead.AddValue:
+	case storage.WALAddValue:
 		n.Values = append(n.Values, record.Value)
 		break
-	case writeahead.RemoveValue:
+	case storage.WALRemoveValue:
 		n.removeValue(record.Value)
 		break
 	default:
@@ -82,7 +83,7 @@ func (n *Node) removeValue(value Value) bool {
 	for i := range values {
 		// If a matching value is found
 		if values[i].Equal(value) {
-			// Shift value array, overwritting (and thus removing) i-th element
+			// Shift value array, overwriting (and thus removing) i-th element
 			for j := i; j < len(values)-1; j++ {
 				values[j] = values[j+1]
 			}

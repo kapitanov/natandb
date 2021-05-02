@@ -6,7 +6,6 @@ import (
 
 	"github.com/kapitanov/natandb/pkg/storage"
 	"github.com/kapitanov/natandb/pkg/util"
-	"github.com/kapitanov/natandb/pkg/writeahead"
 )
 
 // Model binary format:
@@ -45,24 +44,32 @@ const (
 )
 
 // Restore restores a data model from persistent storage and syncs it with WAL log
-func Restore(wal writeahead.Log, driver storage.Driver) (*Root, error) {
+func Restore(driver storage.Driver) (*Root, error) {
 	log.Printf("restoring model state")
 
 	// Load a snapshot from a persistent storage
-	file, err := driver.ReadSnapshotFile()
+	snapshot, err := driver.SnapshotFile().Read()
 	if err != nil {
 		return nil, err
 	}
+	defer func() {
+		_ = snapshot.Close()
+	}()
 
-	model, err := ReadSnapshot(file)
-	if file != nil {
-		file.Close()
-	}
+	model, err := ReadSnapshot(snapshot)
 	if err != nil {
 		return nil, err
 	}
 
 	// Then replay write-ahead log to restore model's actual state
+	wal, err := driver.WALFile().Read()
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = wal.Close()
+	}()
+
 	lastChangeID := model.LastChangeID
 	err = model.replayWriteAheadLog(wal)
 	if err != nil {
@@ -72,18 +79,15 @@ func Restore(wal writeahead.Log, driver storage.Driver) (*Root, error) {
 	// If model stage was not in sync with write-ahead log,
 	// then new model snapshot should be created
 	if lastChangeID != model.LastChangeID {
-		file, err := driver.WriteSnapshotFile()
-		if err != nil && err != io.EOF {
+		file, err := driver.SnapshotFile().Write()
+		if err != nil {
 			return nil, err
 		}
+		defer func() {
+			_ = file.Close()
+		}()
 
 		err = model.WriteSnapshot(file)
-		if err != nil {
-			file.Close()
-			return nil, err
-		}
-
-		err = file.Close()
 		if err != nil {
 			return nil, err
 		}
@@ -163,7 +167,7 @@ func (m *Root) WriteSnapshot(file io.Writer) error {
 		return err
 	}
 
-	// Then, write node snapshots sequentally
+	// Then, write node snapshots sequentially
 	for _, node := range m.NodesMap {
 		err = node.writeSnapshot(file)
 		if err != nil {
@@ -219,7 +223,7 @@ func readNodeFromSnapshot(file io.Reader) (*Node, error) {
 			return nil, fmt.Errorf("failed to read node snapshot %d-th value: %s", i, err)
 		}
 
-		values[i] = Value(value)
+		values[i] = value
 	}
 
 	node := &Node{

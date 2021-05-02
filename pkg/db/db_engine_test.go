@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"github.com/kapitanov/natandb/pkg/storage"
 	"io"
-	l "log"
+	"log"
+	"os"
 	"sort"
 	"strings"
 	"testing"
 
 	"github.com/kapitanov/natandb/pkg/db"
-	"github.com/kapitanov/natandb/pkg/writeahead"
+	l "github.com/kapitanov/natandb/pkg/log"
 )
 
 const (
@@ -29,7 +30,13 @@ func TestGetNoSuchKey(t *testing.T) {
 
 func TestRemoveValueNoSuchKey(t *testing.T) {
 	engine := createEngine(t)
-	node, err := engine.RemoveValue(key, db.Value("value"))
+	tx, err := engine.BeginTx()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	node, err := tx.RemoveValue(key, db.Value("value"))
 	if err != db.ErrNoSuchKey {
 		t.Errorf("ERROR: expected %s but got %s", db.ErrNoSuchKey, err)
 		return
@@ -38,14 +45,31 @@ func TestRemoveValueNoSuchKey(t *testing.T) {
 	if node != nil {
 		t.Errorf("ERROR: expected node=nil but got %s", node)
 	}
+
+	err = tx.Close()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
 }
 
 func TestRemoveKeyNoSuchKey(t *testing.T) {
 	engine := createEngine(t)
+	tx, err := engine.BeginTx()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
 
-	err := engine.RemoveKey(key)
+	err = tx.RemoveKey(key)
 	if err != db.ErrNoSuchKey {
 		t.Errorf("ERROR: expected %s but got %s", db.ErrNoSuchKey, err)
+	}
+
+	err = tx.Close()
+	if err != nil {
+		t.Fatal(err)
+		return
 	}
 }
 
@@ -54,12 +78,26 @@ func TestRemoveKeyNoSuchKey(t *testing.T) {
 // --------------------------------------------------------------------------------------------------------------------
 
 func TestSetNewKey(t *testing.T) {
-	values := []db.Value{db.Value("value")}
 	engine := createEngine(t)
 
-	node, err := engine.Set(key, values)
+	var node *db.Node
+	values := []db.Value{db.Value("value")}
+
+	tx, err := engine.BeginTx()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	node, err = tx.Set(key, values)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
+		return
+	}
+
+	err = tx.Close()
+	if err != nil {
+		t.Fatal(err)
 		return
 	}
 
@@ -68,11 +106,23 @@ func TestSetNewKey(t *testing.T) {
 }
 
 func TestSetNewKeyWithEmptyValue(t *testing.T) {
-	values := []db.Value{}
 	engine := createEngine(t)
-	node, err := engine.Set(key, values)
+	tx, err := engine.BeginTx()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	var values []db.Value
+	node, err := tx.Set(key, values)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
+		return
+	}
+
+	err = tx.Close()
+	if err != nil {
+		t.Fatal(err)
 		return
 	}
 
@@ -82,18 +132,28 @@ func TestSetNewKeyWithEmptyValue(t *testing.T) {
 
 func TestSetExistingKey(t *testing.T) {
 	engine := createEngine(t)
-
+	tx, err := engine.BeginTx()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
 	values := []db.Value{db.Value("old value")}
-	node, err := engine.Set(key, values)
+	node, err := tx.Set(key, values)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
 	}
 
 	values = []db.Value{db.Value("value")}
-	node, err = engine.Set(key, values)
+	node, err = tx.Set(key, values)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
+		return
+	}
+
+	err = tx.Close()
+	if err != nil {
+		t.Fatal(err)
 		return
 	}
 
@@ -102,34 +162,70 @@ func TestSetExistingKey(t *testing.T) {
 }
 
 func TestAddValue(t *testing.T) {
+	engine := createEngine(t)
+	tx, err := engine.BeginTx()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
 	value1 := db.Value("value1")
 	value2 := db.Value("value2")
-	engine := createEngine(t)
 
 	// Add value1 once
-	node, err := engine.AddValue(key, value1)
+	node, err := tx.AddValue(key, value1)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
+		return
+	}
+
+	err = tx.Close()
+	if err != nil {
+		t.Fatal(err)
 		return
 	}
 
 	checkNode(t, node, key, []db.Value{value1}, 1)
 	checkGetNode(t, engine, node)
 
+	tx, err = engine.BeginTx()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
 	// Add value1 twice
-	node, err = engine.AddValue(key, value1)
+	node, err = tx.AddValue(key, value1)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
+		return
+	}
+
+	err = tx.Close()
+	if err != nil {
+		t.Fatal(err)
 		return
 	}
 
 	checkNode(t, node, key, []db.Value{value1, value1}, 2)
 	checkGetNode(t, engine, node)
 
+	tx, err = engine.BeginTx()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
 	// Add value2 once
-	node, err = engine.AddValue(key, value2)
+	node, err = tx.AddValue(key, value2)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
+		return
+	}
+
+	err = tx.Close()
+	if err != nil {
+		t.Fatal(err)
 		return
 	}
 
@@ -138,14 +234,26 @@ func TestAddValue(t *testing.T) {
 }
 
 func TestRemoveValue(t *testing.T) {
+	engine := createEngine(t)
+	tx, err := engine.BeginTx()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
 	value1 := db.Value("value1")
 	value2 := db.Value("value2")
-	engine := createEngine(t)
 
 	values := []db.Value{value1, value1, value2}
-	node, err := engine.Set(key, values)
+	node, err := tx.Set(key, values)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
+		return
+	}
+
+	err = tx.Close()
+	if err != nil {
+		t.Fatal(err)
 		return
 	}
 
@@ -153,9 +261,21 @@ func TestRemoveValue(t *testing.T) {
 	checkGetNode(t, engine, node)
 
 	// Remove value1 once
-	node, err = engine.RemoveValue(key, value1)
+	tx, err = engine.BeginTx()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	node, err = tx.RemoveValue(key, value1)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
+		return
+	}
+
+	err = tx.Close()
+	if err != nil {
+		t.Fatal(err)
 		return
 	}
 
@@ -163,9 +283,21 @@ func TestRemoveValue(t *testing.T) {
 	checkGetNode(t, engine, node)
 
 	// Remove value1 twice
-	node, err = engine.RemoveValue(key, value1)
+	tx, err = engine.BeginTx()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	node, err = tx.RemoveValue(key, value1)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
+		return
+	}
+
+	err = tx.Close()
+	if err != nil {
+		t.Fatal(err)
 		return
 	}
 
@@ -173,9 +305,21 @@ func TestRemoveValue(t *testing.T) {
 	checkGetNode(t, engine, node)
 
 	// Remove value1 once more
-	_, err = engine.RemoveValue(key, value1)
+	tx, err = engine.BeginTx()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	_, err = tx.RemoveValue(key, value1)
 	if err != db.ErrNoSuchValue {
 		t.Errorf("ERROR: expected %s but got %s", db.ErrNoSuchValue, err)
+		return
+	}
+
+	err = tx.Close()
+	if err != nil {
+		t.Fatal(err)
 		return
 	}
 
@@ -183,30 +327,68 @@ func TestRemoveValue(t *testing.T) {
 	checkGetNode(t, engine, node)
 
 	// Remove value2 once
-	node, err = engine.RemoveValue(key, value2)
+	tx, err = engine.BeginTx()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	node, err = tx.RemoveValue(key, value2)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
+		return
+	}
+
+	err = tx.Close()
+	if err != nil {
+		t.Fatal(err)
 		return
 	}
 
 	checkNode(t, node, key, []db.Value{}, 6)
 	// Empty nodes are dropped automatically
 	checkGetNoNode(t, engine, key)
-	version := engine.GetVersion()
+
+	tx, err = engine.BeginTx()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	version := tx.GetVersion()
 	if version != 6 {
 		t.Errorf("ERROR: expected db.version=%d but got %d", 6, version)
+	}
+
+	err = tx.Close()
+	if err != nil {
+		t.Fatal(err)
+		return
 	}
 }
 
 func TestAddUniqueValue(t *testing.T) {
-	value1 := db.Value("value1")
-	value2 := db.Value("value2")
 	engine := createEngine(t)
 
+	value1 := db.Value("value1")
+	value2 := db.Value("value2")
+
 	// Add value1 once
-	node, err := engine.AddUniqueValue(key, value1)
+	tx, err := engine.BeginTx()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	node, err := tx.AddUniqueValue(key, value1)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
+		return
+	}
+
+	err = tx.Close()
+	if err != nil {
+		t.Fatal(err)
 		return
 	}
 
@@ -214,33 +396,70 @@ func TestAddUniqueValue(t *testing.T) {
 	checkGetNode(t, engine, node)
 
 	// Add value1 twice
-	_, err = engine.AddUniqueValue(key, value1)
+	tx, err = engine.BeginTx()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	_, err = tx.AddUniqueValue(key, value1)
 	if err != db.ErrDuplicateValue {
 		t.Errorf("ERROR: expected %s but got %s", db.ErrDuplicateValue, err)
+		return
+	}
+
+	err = tx.Close()
+	if err != nil {
+		t.Fatal(err)
 		return
 	}
 
 	checkGetNode(t, engine, node) // No changes should be applied
 
 	// Add value2 once
-	node, err = engine.AddUniqueValue(key, value2)
+	tx, err = engine.BeginTx()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	node, err = tx.AddUniqueValue(key, value2)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
 	}
+
+	err = tx.Close()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
 	checkNode(t, node, key, []db.Value{value1, value2}, 2)
 	checkGetNode(t, engine, node)
 }
 
 func TestRemoveAllValues(t *testing.T) {
-	value1 := db.Value("value1")
-	value2 := db.Value("value2")
 	engine := createEngine(t)
 
+	value1 := db.Value("value1")
+	value2 := db.Value("value2")
+
+	tx, err := engine.BeginTx()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
 	values := []db.Value{value1, value1, value2}
-	node, err := engine.Set(key, values)
+	node, err := tx.Set(key, values)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
+		return
+	}
+
+	err = tx.Close()
+	if err != nil {
+		t.Fatal(err)
 		return
 	}
 
@@ -248,9 +467,21 @@ func TestRemoveAllValues(t *testing.T) {
 	checkGetNode(t, engine, node)
 
 	// Remove value1 once
-	node, err = engine.RemoveAllValues(key, value1)
+	tx, err = engine.BeginTx()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	node, err = tx.RemoveAllValues(key, value1)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
+		return
+	}
+
+	err = tx.Close()
+	if err != nil {
+		t.Fatal(err)
 		return
 	}
 
@@ -258,35 +489,71 @@ func TestRemoveAllValues(t *testing.T) {
 	checkGetNode(t, engine, node)
 
 	// Remove value1 twice
-	_, err = engine.RemoveAllValues(key, value1)
+	tx, err = engine.BeginTx()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	_, err = tx.RemoveAllValues(key, value1)
 	if err != db.ErrNoSuchValue {
 		t.Errorf("ERROR: expected %s but got %s", db.ErrNoSuchValue, err)
+		return
+	}
+
+	err = tx.Close()
+	if err != nil {
+		t.Fatal(err)
 		return
 	}
 
 	checkGetNode(t, engine, node) // No changes should be applied
 
 	// Remove value2 once
-	node, err = engine.RemoveAllValues(key, value2)
+	tx, err = engine.BeginTx()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	node, err = tx.RemoveAllValues(key, value2)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
 	}
 
-	checkNode(t, node, key, []db.Value{}, 6)
+	err = tx.Close()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	checkNode(t, node, key, []db.Value{}, 7)
 	// Empty nodes are dropped automatically
 	checkGetNoNode(t, engine, key)
 }
 
 func TestRemoveKeyExistingKey(t *testing.T) {
+	engine := createEngine(t)
 	value1 := db.Value("value1")
 	value2 := db.Value("value2")
-	engine := createEngine(t)
 
 	values := []db.Value{value1, value1, value2}
-	node, err := engine.Set(key, values)
+	tx, err := engine.BeginTx()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	node, err := tx.Set(key, values)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
+		return
+	}
+
+	err = tx.Close()
+	if err != nil {
+		t.Fatal(err)
 		return
 	}
 
@@ -294,16 +561,39 @@ func TestRemoveKeyExistingKey(t *testing.T) {
 	checkGetNode(t, engine, node)
 
 	// Remove key
-	err = engine.RemoveKey(key)
+	tx, err = engine.BeginTx()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	err = tx.RemoveKey(key)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
 	}
 
+	err = tx.Close()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
 	checkGetNoNode(t, engine, key)
 
-	if engine.GetVersion() != 4 {
-		t.Errorf("ERROR: expected db.version=%d but got %d", 4, engine.GetVersion())
+	tx, err = engine.BeginTx()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	if tx.GetVersion() != 4 {
+		t.Errorf("ERROR: expected db.version=%d but got %d", 4, tx.GetVersion())
+	}
+
+	if err != nil {
+		t.Fatal(err)
+		return
 	}
 }
 
@@ -313,8 +603,13 @@ func TestRemoveKeyExistingKey(t *testing.T) {
 
 func TestListEmpty(t *testing.T) {
 	engine := createEngine(t)
+	tx, err := engine.BeginTx()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
 
-	list, err := engine.List("", 0, 100, 0)
+	list, err := tx.List("", 0, 100, 0)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
@@ -333,16 +628,28 @@ func TestListEmpty(t *testing.T) {
 	if len(list.Nodes) != 0 {
 		t.Errorf("ERROR: expected len(nodes)=0 but got %d", len(list.Nodes))
 	}
+
+	err = tx.Close()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
 }
 
 func TestListNonEmpty(t *testing.T) {
 	engine := createEngine(t)
+	tx, err := engine.BeginTx()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
 	count := 4
 	value := db.Value("value")
 	nodes := make([]*db.Node, count)
 	for i := 0; i < count; i++ {
 		key := db.Key(fmt.Sprintf("keys/key_%02d", i))
-		node, err := engine.Set(key, []db.Value{value})
+		node, err := tx.Set(key, []db.Value{value})
 		if err != nil {
 			t.Errorf("ERROR: expected no error but got %s", err)
 			return
@@ -350,9 +657,9 @@ func TestListNonEmpty(t *testing.T) {
 
 		nodes[i] = node
 	}
-	version := engine.GetVersion()
+	version := tx.GetVersion()
 
-	list, err := engine.List("", 0, uint(count)+1, 0)
+	list, err := tx.List("", 0, uint(count)+1, 0)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
@@ -365,17 +672,29 @@ func TestListNonEmpty(t *testing.T) {
 	}
 	sort.Slice(expectedNodes, cmp)
 
+	err = tx.Close()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
 	checkNodeList(t, list, expectedNodes, uint(count), version)
 }
 
 func TestListPaged(t *testing.T) {
 	engine := createEngine(t)
+	tx, err := engine.BeginTx()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
 	count := 8
 	value := db.Value("value")
 	nodes := make([]*db.Node, count)
 	for i := 0; i < count; i++ {
 		key := db.Key(fmt.Sprintf("keys/key_%02d", i))
-		node, err := engine.Set(key, []db.Value{value})
+		node, err := tx.Set(key, []db.Value{value})
 		if err != nil {
 			t.Errorf("ERROR: expected no error but got %s", err)
 			return
@@ -384,13 +703,13 @@ func TestListPaged(t *testing.T) {
 		nodes[i] = node
 	}
 
-	version := engine.GetVersion()
+	version := tx.GetVersion()
 
 	// --------------------------------------------
 	// Page 1 (0.. max-1)
 	// --------------------------------------------
 	max := 4
-	list, err := engine.List("", 0, uint(max), 0)
+	list, err := tx.List("", 0, uint(max), 0)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
@@ -403,12 +722,24 @@ func TestListPaged(t *testing.T) {
 	}
 	sort.Slice(expectedNodes, cmp)
 
+	err = tx.Close()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
 	checkNodeList(t, list, expectedNodes, uint(count), version)
 
 	// --------------------------------------------
 	// Page 2 (max..2*max-1)
 	// --------------------------------------------
-	list, err = engine.List("", uint(max), uint(max), 0)
+	tx, err = engine.BeginTx()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	list, err = tx.List("", uint(max), uint(max), 0)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
@@ -418,18 +749,30 @@ func TestListPaged(t *testing.T) {
 	expectedNodes = nodes[max:max]
 	sort.Slice(expectedNodes, cmp)
 
+	err = tx.Close()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
 	checkNodeList(t, list, expectedNodes, uint(count), version)
 }
 
 func TestListFiltered(t *testing.T) {
 	engine := createEngine(t)
+	tx, err := engine.BeginTx()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
 	count := 4
 	value := db.Value("value")
 	nodes := make([]*db.Node, count)
 	for i := 0; i < count; i++ {
 		key := db.Key(fmt.Sprintf("keys/key_%02d", i))
 		values := []db.Value{value}
-		node, err := engine.Set(key, values)
+		node, err := tx.Set(key, values)
 		if err != nil {
 			t.Errorf("ERROR: expected no error but got %s", err)
 			return
@@ -440,17 +783,17 @@ func TestListFiltered(t *testing.T) {
 	for i := 0; i < count; i++ {
 		key := db.Key(fmt.Sprintf("non-keys/key_%02d", i))
 		values := []db.Value{value}
-		_, err := engine.Set(key, values)
+		_, err := tx.Set(key, values)
 		if err != nil {
 			t.Errorf("ERROR: expected no error but got %s", err)
 			return
 		}
 	}
 
-	version := engine.GetVersion()
+	version := tx.GetVersion()
 
 	max := 4
-	list, err := engine.List("keys/", 0, uint(max), 0)
+	list, err := tx.List("keys/", 0, uint(max), 0)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
@@ -462,6 +805,12 @@ func TestListFiltered(t *testing.T) {
 	}
 	sort.Slice(expectedNodes, cmp)
 
+	err = tx.Close()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
 	checkNodeList(t, list, expectedNodes, uint(count), version)
 }
 
@@ -470,16 +819,42 @@ func TestListFiltered(t *testing.T) {
 // --------------------------------------------------------------------------------------------------------------------
 
 func TestShutdownAndRestore(t *testing.T) {
-	walFile := &inMemoryWriteAheadLog{0}
-	storageDriver := NewInMemoryStorageDriver(t)
+	log.SetOutput(io.Discard)
+	l.SetMinLevel(l.Verbose)
 
-	engine, err := db.NewEngine(walFile, storageDriver)
+	dir, err := os.MkdirTemp(os.TempDir(), "*")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	driver, err := storage.NewDriver(storage.DirectoryOption(dir))
+	if err != nil {
+		t.Errorf("ERROR: NewDriver() failed: %s", err)
+		t.Fatal(err)
+	}
+
+	engine, err := db.NewEngine(driver)
 	if err != nil {
 		t.Fatalf("NewEngine failed: %s", err)
 	}
 
 	values := []db.Value{db.Value("value")}
-	node, err := engine.Set(key, values)
+	var node *db.Node
+	err = engine.Tx(func(tx db.TX) error {
+		var e error
+		node, e = tx.Set(key, values)
+		return e
+	})
+	if err != nil {
+		t.Errorf("ERROR: expected no error but got %s", err)
+		return
+	}
+
+	var oldVersion uint64
+	err = engine.Tx(func(tx db.TX) error {
+		oldVersion = tx.GetVersion()
+		return nil
+	})
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
@@ -491,15 +866,20 @@ func TestShutdownAndRestore(t *testing.T) {
 		return
 	}
 
-	engine, err = db.NewEngine(walFile, storageDriver)
+	engine, err = db.NewEngine(driver)
 	if err != nil {
 		t.Fatalf("NewEngine failed: %s", err)
 	}
 
-	version := engine.GetVersion()
-	if version != node.Version {
-		t.Errorf("ERROR: expected db.version=%d but got %d", node.Version, version)
-		return
+	err = engine.Tx(func(tx db.TX) error {
+		version := tx.GetVersion()
+		if version != oldVersion {
+			t.Errorf("ERROR: expected db.version=%d but got %d", oldVersion, version)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	checkNode(t, node, key, values, 1)
@@ -511,174 +891,27 @@ func TestShutdownAndRestore(t *testing.T) {
 // --------------------------------------------------------------------------------------------------------------------
 
 func createEngine(t *testing.T) db.Engine {
-	l.SetOutput(io.Discard)
+	log.SetOutput(io.Discard)
+	l.SetMinLevel(l.Verbose)
 
-	walFile := &inMemoryWriteAheadLog{0}
-	storageDriver := NewInMemoryStorageDriver(t)
+	dir, err := os.MkdirTemp(os.TempDir(), "*")
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	engine, err := db.NewEngine(walFile, storageDriver)
+	driver, err := storage.NewDriver(storage.DirectoryOption(dir))
+	if err != nil {
+		t.Errorf("ERROR: NewDriver() failed: %s", err)
+		t.Fatal(err)
+	}
+
+	engine, err := db.NewEngine(driver)
 	if err != nil {
 		t.Fatalf("NewEngine failed: %s", err)
 	}
 
 	return engine
 }
-
-// Test storage.WriteAheadLogFile impl ----------------------------------------
-
-type inMemoryWriteAheadLog struct {
-	lastID uint64
-}
-
-func (t *inMemoryWriteAheadLog) WriteOne(record *writeahead.Record) error {
-	t.lastID++
-	record.ID = t.lastID
-	return nil
-}
-
-func (t *inMemoryWriteAheadLog) WriteMany(records []*writeahead.Record) error {
-	for _, r := range records {
-		t.WriteOne(r)
-	}
-	return nil
-}
-
-func (t *inMemoryWriteAheadLog) ReadChunkForward(minID uint64, limit int) (writeahead.RecordChunk, error) {
-	return make(writeahead.RecordChunk, 0), nil
-}
-
-func (t *inMemoryWriteAheadLog) ReadChunkBackward(maxID uint64, limit int) (writeahead.RecordChunk, error) {
-	return make(writeahead.RecordChunk, 0), nil
-}
-
-func (t *inMemoryWriteAheadLog) Close() error {
-	return nil
-}
-
-// Test storage.Driver impl ---------------------------------------------
-
-type inMemoryFile struct {
-	t           *testing.T
-	buffer      []byte
-	readOffset  int
-	writeOffset int
-	capacity    int
-}
-
-func NewInMemoryFile(t *testing.T) *inMemoryFile {
-	return &inMemoryFile{
-		t:      t,
-		buffer: make([]byte, 0),
-	}
-}
-
-func NewInMemoryStorageDriver(t *testing.T) storage.Driver {
-	return &inMemoryFileSystem{
-		walFile:      NewInMemoryFile(t),
-		snapshotFile: NewInMemoryFile(t),
-	}
-}
-
-type inMemoryFileSystem struct {
-	walFile      *inMemoryFile
-	snapshotFile *inMemoryFile
-}
-
-func (s *inMemoryFileSystem) ReadWalFile() (io.ReadSeeker, error) {
-	s.walFile.readOffset = 0
-	return &inMemoryFileSystemReaderWriter{s.walFile}, nil
-}
-
-func (s *inMemoryFileSystem) WriteWalFile() (io.WriteCloser, error) {
-	return &inMemoryFileSystemReaderWriter{s.walFile}, nil
-}
-
-func (s *inMemoryFileSystem) ReadSnapshotFile() (io.ReadCloser, error) {
-	s.snapshotFile.readOffset = 0
-	return &inMemoryFileSystemReaderWriter{s.snapshotFile}, nil
-}
-
-func (s *inMemoryFileSystem) WriteSnapshotFile() (io.WriteCloser, error) {
-	return &inMemoryFileSystemReaderWriter{s.snapshotFile}, nil
-}
-
-type inMemoryFileSystemReaderWriter struct {
-	stream *inMemoryFile
-}
-
-func (r *inMemoryFileSystemReaderWriter) Read(p []byte) (int, error) {
-	s := r.stream
-	n := len(p)
-
-	if n > s.capacity-s.readOffset {
-		n = s.capacity - s.readOffset
-	}
-
-	if n == 0 {
-		return 0, io.EOF
-	}
-
-	for i := 0; i < n; i++ {
-		if i+s.readOffset >= len(s.buffer) {
-			s.t.Logf("Bad READ: cap=%d, ro=%d, i=%d, len=%d", s.capacity, s.readOffset, i, len(s.buffer))
-		}
-		if i >= len(p) {
-			s.t.Logf("Bad READ: i=%d, len=%d", i, len(p))
-		}
-		p[i] = s.buffer[i+s.readOffset]
-	}
-
-	s.readOffset += n
-	return n, nil
-}
-
-func (w *inMemoryFileSystemReaderWriter) Write(p []byte) (int, error) {
-	s := w.stream
-	n := len(p)
-	for len(s.buffer) < s.writeOffset+n {
-		newBuffer := make([]byte, len(s.buffer)+1024)
-		for i := 0; i < len(s.buffer); i++ {
-			newBuffer[i] = s.buffer[i]
-		}
-		s.buffer = newBuffer
-	}
-
-	for i := 0; i < n; i++ {
-		s.buffer[i+s.writeOffset] = p[i]
-	}
-
-	s.writeOffset += n
-	if s.capacity < s.writeOffset {
-		s.capacity = s.writeOffset
-	}
-	return n, nil
-}
-
-func (r *inMemoryFileSystemReaderWriter) Seek(offset int64, whence int) (int64, error) {
-	s := r.stream
-	switch whence {
-	case io.SeekCurrent:
-		if s.readOffset+int(offset) < 0 {
-			return int64(s.readOffset), io.EOF
-		}
-		s.readOffset += int(offset)
-		break
-	case io.SeekStart:
-		s.readOffset = int(offset)
-		break
-	case io.SeekEnd:
-		s.readOffset = s.capacity - int(offset)
-		break
-	}
-
-	return int64(s.readOffset), nil
-}
-
-func (r *inMemoryFileSystemReaderWriter) Close() error {
-	return nil
-}
-
-// Test assertions ------------------------------------------------------------
 
 func checkNode(t *testing.T, node *db.Node, key db.Key, values []db.Value, version uint64) bool {
 	if node == nil {
@@ -740,7 +973,16 @@ func checkNodeList(t *testing.T, list *db.PagedNodeList, nodes []*db.Node, total
 }
 
 func checkGetNode(t *testing.T, engine db.Engine, node *db.Node) {
-	n, err := engine.Get(node.Key)
+	tx, err := engine.BeginTx()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+	defer func() {
+		_ = tx.Close()
+	}()
+
+	n, err := tx.Get(node.Key)
 	if err != nil {
 		t.Errorf("ERROR: expected no error but got %s", err)
 		return
@@ -750,7 +992,16 @@ func checkGetNode(t *testing.T, engine db.Engine, node *db.Node) {
 }
 
 func checkGetNoNode(t *testing.T, engine db.Engine, key db.Key) {
-	node, err := engine.Get(key)
+	tx, err := engine.BeginTx()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+	defer func() {
+		_ = tx.Close()
+	}()
+
+	node, err := tx.Get(key)
 	if err != db.ErrNoSuchKey {
 		t.Errorf("ERROR: expected %s but got %s", db.ErrNoSuchKey, err)
 		return

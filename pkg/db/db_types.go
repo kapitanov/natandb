@@ -67,24 +67,39 @@ const (
 
 	// ErrDataOutOfDate is returned when a data change detected while iterating through nodes
 	ErrDataOutOfDate = Error("out of date")
+
+	// ErrShutdown is returned when engine is already shut down
+	ErrShutdown = Error("shutdown")
 )
 
 // Engine is a public interface for NatanDB engine
 type Engine interface {
+	// BeginTx starts new transaction
+	BeginTx() (TX, error)
+
+	// Tx executes a function within a transaction
+	Tx(func(tx TX) error) error
+
+	// Close shuts engine down gracefully
+	Close() error
+}
+
+// TX is a public interface for NatanDB engine's transaction
+type TX interface {
 	// List returns paged list of DB keys (with values)
 	// Optionally list might be filtered by key prefix
 	// If data version is changed, a ErrDataOutOfDate error is returned
 	// ErrDataOutOfDate is not returned if version parameter contains zero
 	List(prefix Key, skip uint, limit uint, version uint64) (*PagedNodeList, error)
 
-	// GetVersion retunrs current data version
+	// GetVersion returns current data version
 	GetVersion() uint64
 
 	// Get gets a node value by its key
 	// If specified node doesn't exist, a ErrNoSuchKey error is returned
 	Get(key Key) (*Node, error)
 
-	// Set sets a node value, rewritting its value if node already exists
+	// Set sets a node value, rewriting its value if node already exists
 	// If specified node doesn't exists, it will be created
 	Set(key Key, values []Value) (*Node, error)
 
@@ -113,6 +128,9 @@ type Engine interface {
 	// If specified node doesn't exist, a ErrNoSuchKey error is returned
 	RemoveKey(key Key) error
 
-	// Close shuts engine down gracefully
+	// Commit marks transaction for committing
+	Commit()
+
+	// Close terminates a transaction
 	Close() error
 }

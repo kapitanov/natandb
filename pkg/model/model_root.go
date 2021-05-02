@@ -2,10 +2,11 @@ package model
 
 import (
 	"fmt"
+	"io"
 	"sort"
 
 	l "github.com/kapitanov/natandb/pkg/log"
-	"github.com/kapitanov/natandb/pkg/writeahead"
+	"github.com/kapitanov/natandb/pkg/storage"
 )
 
 // Error is a lightweight error type
@@ -86,34 +87,20 @@ func (m *Root) GetOrCreateNode(key string) *Node {
 }
 
 // replayWriteAheadLog syncs data model with write-ahead log
-func (m *Root) replayWriteAheadLog(wal writeahead.Log) error {
+func (m *Root) replayWriteAheadLog(wal storage.WALReader) error {
 	minID := m.LastChangeID
-	chunkSize := 1000
-
-	chunk, err := wal.ReadChunkBackward(^uint64(0), 1)
-	if err != nil {
-		return err
-	}
-
-	if len(chunk) > 0 && m.LastChangeID < chunk[0].ID {
-		log.Printf("model is out of date, will replay journal (%d/%d)", m.LastChangeID, chunk[0].ID)
-	}
 
 	for {
-		log.Verbosef("replaying journal since %d", minID)
-		chunk, err := wal.ReadChunkForward(minID+1, chunkSize)
+		record, err := wal.Read()
 		if err != nil {
+			if err == io.EOF {
+				break
+			}
 			return err
 		}
 
-		if chunk.Empty() {
-			break
-		}
-
-		for _, record := range chunk {
-			if minID < record.ID {
-				minID = record.ID
-			}
+		if minID < record.ID {
+			minID = record.ID
 
 			err = m.Apply(record)
 			if err != nil {
@@ -122,12 +109,12 @@ func (m *Root) replayWriteAheadLog(wal writeahead.Log) error {
 		}
 	}
 
-	log.Verbosef("replayed journal till %d", m.LastChangeID)
+	log.Verbosef("replayed journal [%d..%d]", minID, m.LastChangeID)
 	return nil
 }
 
 // Apply applied a write-ahead log record to a data model
-func (m *Root) Apply(record *writeahead.Record) error {
+func (m *Root) Apply(record *storage.WALRecord) error {
 	if record.ID <= m.LastChangeID {
 		log.Errorf("change #%d is already applied to model", record.ID)
 		return ErrChangeAlreadyApplied
@@ -135,13 +122,16 @@ func (m *Root) Apply(record *writeahead.Record) error {
 
 	if record.Key != "" {
 		switch record.Type {
-		case writeahead.None:
+		case storage.WALNone:
 			if log.IsEnabled(l.Verbose) {
 				log.Verbosef("empty wal record: #%d", record.ID)
 			}
 			break
 
-		case writeahead.AddValue:
+		case storage.WALCommitTx:
+			break
+
+		case storage.WALAddValue:
 			node := m.GetOrCreateNode(record.Key)
 			err := node.apply(record)
 			if err != nil {
@@ -149,7 +139,7 @@ func (m *Root) Apply(record *writeahead.Record) error {
 			}
 			break
 
-		case writeahead.RemoveValue:
+		case storage.WALRemoveValue:
 			node := m.GetNode(record.Key)
 			if node != nil {
 				err := node.apply(record)
@@ -163,7 +153,7 @@ func (m *Root) Apply(record *writeahead.Record) error {
 			}
 			break
 
-		case writeahead.RemoveKey:
+		case storage.WALRemoveKey:
 			node := m.GetNode(record.Key)
 			if node != nil {
 				err := node.apply(record)
@@ -177,7 +167,6 @@ func (m *Root) Apply(record *writeahead.Record) error {
 					log.Verbosef("node \"%s\" is not found while applying wal record: #%d", record.Key, record.ID)
 				}
 			}
-
 			break
 
 		default:
@@ -186,7 +175,10 @@ func (m *Root) Apply(record *writeahead.Record) error {
 		}
 	}
 
-	m.LastChangeID = record.ID
+	if record.Type != storage.WALCommitTx {
+		m.LastChangeID = record.ID
+	}
+
 	if log.IsEnabled(l.Verbose) {
 		log.Verbosef("applied wal record #%d", record.ID)
 	}
